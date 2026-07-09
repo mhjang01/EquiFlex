@@ -24,7 +24,6 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import sys
-sys.path.insert(0, '/home/mhjang/workspace/flex')
 
 import torch
 import numpy as np

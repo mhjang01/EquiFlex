@@ -118,16 +118,15 @@ class FlexTrainer(pl.LightningModule):
         self.save_hyperparameters()
 
         self.config = config
-        # FlexModel is the canonical (latest) architecture. Older versions live
-        # in model.legacy and are selected only by explicit model_class.
+        # FlexModel is the canonical (latest, V5) architecture. Legacy V1–V4
+        # variants are not distributed.
         mc = getattr(config.training, 'model_class', 'V5')
-        if mc in ('V5', None):
-            model_cls = FlexModel
-        else:
-            from .legacy import FlexModelV1, FlexModelV2, FlexModelV3, FlexModelV4
-            model_cls = {'V1': FlexModelV1, 'V2': FlexModelV2,
-                         'V3': FlexModelV3, 'V4': FlexModelV4}[mc]
-        self.model = model_cls(config.model)
+        if mc not in ('V5', None):
+            raise ValueError(
+                f"model_class={mc!r} refers to a legacy architecture that is not "
+                "included in this distribution; only 'V5' (FlexModel) is available."
+            )
+        self.model = FlexModel(config.model)
         self.loss_fn = FlexLoss(config.loss)
 
         # ConFIG conflict-free gradient update: requires manual optimization

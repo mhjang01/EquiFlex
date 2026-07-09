@@ -34,6 +34,7 @@ data/*
 data/5SAK_ZRY/*
 !data/5SAK_ZRY/system_data/
 !data/5SAK_ZRY/inputs/
+!data/5SAK_ZRY/inference.yaml
 # generated inference outputs (regenerable) stay untracked
 data/5SAK_ZRY/sample_*/
 data/5SAK_ZRY/results.pt

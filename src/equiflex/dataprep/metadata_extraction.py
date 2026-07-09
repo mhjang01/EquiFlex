@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 import sys
-sys.path.insert(0, '/home/mhjang/workspace/flex')
 from equiflex.prep.parse import *
 from equiflex.prep.reference import generate_ligand_reference_data
 from tqdm import tqdm
