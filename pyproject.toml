@@ -1,0 +1,80 @@
+[project]
+name = "equiflex"
+version = "0.1.0"
+description = "Flexible molecular modeling"
+requires-python = "==3.12.*"
+dependencies = [
+    # Chem
+    "rdkit",
+    "py3Dmol",
+    "esm",
+    "biotite",
+    "gemmi",
+    "unimol_tools",
+    "huggingface_hub",
+    # ML
+    "torch==2.8.0",
+    "torchvision==0.23.0",
+    "lightning",
+    "cuequivariance==0.7.0",
+    "cuequivariance-torch==0.7.0",
+    "cuequivariance-ops-torch-cu12==0.7.0",
+    "pyg-lib",
+    "torch-scatter",
+    "torch-geometric",
+    "muon-optimizer",
+    "normuon",
+    "wandb",
+    "torchinfo",
+    "transformers",
+    "scikit-learn",
+    "opt-einsum-fx",
+    "hydra-core",
+    # Auxiliaries
+    "matplotlib",
+    "jupyter",
+    "pandas>=2.0",
+    "joblib",
+    "seaborn",
+    "conflictfree",
+    "posebusters>=0.6.5",
+    "fastparquet>=2026.3.0",
+    "plinder>=0.2.26",
+    "pytest>=9.1.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/equiflex"]
+
+[tool.uv]
+environments = ["sys_platform == 'linux'"]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux'" },
+]
+torchvision = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux'" },
+]
+torch-scatter = [
+    { url = "https://data.pyg.org/whl/torch-2.8.0%2Bcu128/torch_scatter-2.1.2%2Bpt28cu128-cp312-cp312-linux_x86_64.whl", marker = "sys_platform == 'linux'" },
+]
+pyg-lib = [
+    { url = "https://data.pyg.org/whl/torch-2.8.0%2Bcu128/pyg_lib-0.5.0%2Bpt28cu128-cp312-cp312-linux_x86_64.whl", marker = "sys_platform == 'linux'" },
+]
+muon-optimizer = { git = "https://github.com/KellerJordan/Muon" }
+normuon = { git = "https://github.com/zichongli5/NorMuon" }
+
+[dependency-groups]
+dev = [
+    "imageio>=2.37.3",
+]

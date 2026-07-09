@@ -1,0 +1,174 @@
+# =============================================================================
+# Flex Model Configuration - Base
+# =============================================================================
+# Default configuration for Flex protein-ligand structure prediction model.
+# This serves as the reference configuration for standard training runs.
+
+# =============================================================================
+# Model Architecture
+# =============================================================================
+model:
+  # Input dimensions (from featurization)
+  atom_feat_dim: 299          # Atom features (element, charge, hybridization, etc.)
+  bond_feat_dim: 26           # Bond features (bond type, ring membership, etc.)
+  esm_dim: 1536               # ESM-3 embedding dimension (per residue)
+  unimol_dim: 1536            # Uni-Mol embedding dimension (per ligand atom)
+
+  # Hidden dimensions
+  ns: 1024                   # Scalar feature dimension (main hidden dim)
+  nv: 16                       # Vector feature channels (SO(3) equivariant)
+  pair_hidden_dim: 256        # Pairwise feature dimension
+
+  # Architecture
+  num_atom_layers: 8        # Atom-level transformer layers
+  num_geo_layers: 4           # Geometric attention layers
+
+  # Attention
+  num_atom_heads: 16           # Heads in atom transformer
+  num_geo_heads: 4            # Heads in geometric attention
+  attn_dropout: 0.1           # Attention dropout
+  use_gated_attention: true   # QWEN-3 style gated attention
+  use_qk_norm: true           # QK normalization for attention stability
+  return_attn_stats: false
+
+  # Regularization
+  initial_dropout: 0.3        # Dropout in initial embedding layers
+  output_dropout: 0.1         # Dropout in flow head
+
+  # Pairwise features
+  use_outer_product: false    # Outer product for pair features (memory intensive)
+
+  # Embeddings
+  use_embeddings: true       # Use ESM/UniMol embeddings
+
+  # Equivariance
+  attenuate_by_dist: true    # Attenuate EVA attention by distance
+  soft_cap: 30.0              # Soft cap for attention scores (prevents saturation)
+
+  # Time conditioning
+  time_embed_dim: 256         # Time embedding dimension; Post initialized to ns if != ns
+  time_max_period: 10000      # Max period for sinusoidal encoding
+
+  # Memory optimization
+  use_gradient_checkpointing: false  # Trade compute for memory
+  gradient_checkpoint_every: 2   # Checkpoint every N layers (1=all, 2=every other, 3=every third)
+
+# =============================================================================
+# Loss Functions
+# =============================================================================
+loss:
+  # Flow matching (primary loss)
+  flow_weight: 1
+
+  # Unrolling
+  num_unrolls: 4
+
+  # Bond length constraints (harmonic flat-bottom; quad shrinks ~15× vs old linear)
+  bond_length_weight: 1.0
+  bond_buffer: 0.05      # absolute slack (Å); absorbs XRD vs RDKit envelope noise
+
+  # Bond angle constraints (1-3 pairs; harmonic flat-bottom)
+  bond_angle_weight: 1.0
+  angle_buffer: 0.05
+
+  # van der Waals clash penalty
+  vdw_weight: 10.0
+  vdw_buffer: 0.225
+
+  # Torsion/planarity loss
+  torsion_weight: 1.0
+
+# =============================================================================
+# Data Loading
+# =============================================================================
+data:
+  # Flat symlink dir produced by `bash v2_plinder/flatten_remote.sh`
+  # Loader expects <data_dir>/<system_id>/, not <data_dir>/<split>/<system_id>/
+  data_dir: '/NHNHOME/WORKSPACE/0526040024_A/mhjang/flex/data_v2_plinder_flat'
+  test_data_dir: '/NHNHOME/WORKSPACE/0526040024_A/mhjang/flex/test_data'
+  batch_size: 128
+  val_batches: 2000
+  num_workers: 4
+  shuffle: true
+  pin_memory: true
+  preload: true
+
+  # Train/val/test splits for v2_plinder (PB-cleansed, pli_qcov<90 + UniMolV2 cap<=128)
+  # Counts: train=69,672  val=424  test=719
+  split_csv: '/NHNHOME/WORKSPACE/0526040024_A/mhjang/flex/data_v2_plinder/splits.csv'
+
+# =============================================================================
+# Optimizer (Muon + AdamW)
+# =============================================================================
+# Muon: Used for 2D hidden weight matrices (attention, MLP weights)
+# AdamW: Used for embeddings, output heads, biases, 1D parameters
+optimizer:
+  # Optimizer type: 'adamw', 'muon', or 'normuon'
+  optimizer_type: 'muon'
+
+  # Muon parameters (for hidden weight matrices)
+  muon_lr: 5.0e-3              # Muon learning rate
+  muon_momentum: 0.95         # Muon momentum
+
+  # AdamW parameters (for embeddings, biases, heads)
+  adam_lr: 1.0e-5             # AdamW learning rate
+  adam_beta1: 0.9             # Adam beta1
+  adam_beta2: 0.95            # Adam beta2
+  adam_eps: 1.0e-10           # Adam epsilon
+
+  muon_weight_decay: 1.0e-3
+  adam_weight_decay: 1.0e-4        # Weight decay for all params
+
+# =============================================================================
+# Learning Rate Scheduler (Warmup + Cosine Decay)
+# =============================================================================
+# 1. Linear warmup to max LR
+# 2. Cosine decay to minimum LR (no restarts)
+scheduler:
+  warmup_steps: 1000              # Linear warmup steps
+  start_factor: 1.0e-3             # Start factor for linear warmup
+  end_factor: 1.0e-5
+
+# =============================================================================
+# Exponential Moving Average
+# =============================================================================
+ema:
+  enabled: true
+  decay: 0.9999
+
+# =============================================================================
+# Logging and Checkpointing
+# =============================================================================
+logging:
+  use_wandb: true
+  wandb_project: 'flex'
+  wandb_run_name: v2_170M_ions
+  wandb_entity: null
+
+  log_every_n_steps: 200
+
+  # Gradient and parameter logging (requires use_wandb: true)
+  watch_model: true              # Disabled due to wandb version compatibility
+  watch_log: 'all'                 # 'gradients', 'parameters', 'all', or null
+  watch_log_freq: 500            # How often to log gradients/params (in steps)
+
+  checkpoint_dir: 'checkpoints'
+  save_top_k: 3
+  checkpoint_every_n_steps: 5000
+
+# =============================================================================
+# Training
+# =============================================================================
+training:
+  max_steps: 400000
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 8
+  val_check_interval: 5000
+  precision: 'bf16-mixed'     # '32', '16-mixed', 'bf16-mixed'
+  devices: 4
+  seed: 990131
+  phys_loss_warmup_steps: 5000
+  num_rmsd_samples: 50
+  num_steps: 50
+  timestep_sampler: 'uniform'  # 'uniform' or 'logit_normal'
+  use_config: true # ConFIG

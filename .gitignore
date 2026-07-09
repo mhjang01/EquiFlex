@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# venv
+.venv/
+venv/
+
+# uv
+.uv/
+
+# training artifacts
+checkpoints/
+lightning_logs/
+wandb/
+logs/
+outputs/
+inference_output/
+
+# archives
+*.tar.gz
+*.tar.bz2
+
+# notebooks
+.ipynb_checkpoints/
+
+# large data — keep only the bundled demo system's inputs
+data/*
+!data/5SAK_ZRY/
+data/5SAK_ZRY/*
+!data/5SAK_ZRY/system_data/
+!data/5SAK_ZRY/inputs/
+# generated inference outputs (regenerable) stay untracked
+data/5SAK_ZRY/sample_*/
+data/5SAK_ZRY/results.pt
+data/stats.jsonl
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/

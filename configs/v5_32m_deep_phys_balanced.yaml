@@ -1,0 +1,169 @@
+# =============================================================================
+# Flex Model Configuration - V5 32M Deep Chemistry
+# =============================================================================
+# FlexModelV5 with SH-enriched flow trunk and a deeper atom/triangle stack.
+# Measured params: 32.45M with:
+#   ns=384, pair_hidden_dim=256, num_atom_layers=8, num_geo_layers=4, nv=8
+#
+# Compared with the 30.11M ns=480 config, this trades scalar width for more
+# chemistry depth. The intent is to give the static atom/pair trunk more chances
+# to refine residue/ligand chemistry before the per-timestep flow trunk.
+# =============================================================================
+
+model:
+  # Input dimensions (from featurization)
+  atom_feat_dim: 299
+  bond_feat_dim: 26
+  esm_dim: 1536
+  unimol_dim: 1536
+
+  # Hidden dimensions
+  ns: 384
+  nv: 8
+  pair_hidden_dim: 256
+
+  # Architecture
+  num_atom_layers: 8
+  num_geo_layers: 4
+
+  # Attention
+  num_atom_heads: 16          # scalar head dim = 24
+  num_geo_heads: 4            # vector channels/head = 2
+  attn_dropout: 0.0
+  use_gated_attention: true
+  use_qk_norm: true
+  return_attn_stats: false
+
+  # Regularization
+  initial_dropout: 0.2
+  output_dropout: 0.1
+
+  # Pairwise features
+  use_outer_product: false
+
+  # Embeddings
+  use_embeddings: true
+
+  # Equivariance
+  attenuate_by_dist: true
+  soft_cap: 30.0
+
+  # Time conditioning
+  time_embed_dim: 384
+  time_max_period: 10000
+
+  # Memory optimization
+  use_gradient_checkpointing: true
+  gradient_checkpoint_every: 2
+
+# =============================================================================
+# Loss Functions
+# =============================================================================
+loss:
+  flow_weight: 1
+  num_unrolls: 4
+
+  # Local chemistry geometry. These are higher than the original v5_32m_deep
+  # config because vdW now includes less-diluted clash terms; ring geometry
+  # needs enough restoring force to avoid learning Cartesian atom bends.
+  bond_length_weight: 10.0
+  bond_buffer: 0.05
+
+  bond_angle_weight: 10.0
+  angle_buffer: 0.05
+
+  # vdW balance:
+  # - vdw keeps the smooth mean-nearby-pair penalty.
+  # - vdw_active penalizes the number of violating pairs.
+  # - vdw_max targets the worst penetration, closer to PoseBusters behavior.
+  # Keep the new terms modest at first; they are much less diluted than vdw.
+  vdw_weight: 20.0
+  vdw_active_weight: 0.5
+  vdw_max_weight: 0.25
+  vdw_buffer: 0.225
+  vdw_cutoff: 6.0
+  vdw_active_scale: 0.10
+  vdw_max_alpha: 20.0
+
+  # Planarity support for aromatic/sp2 groups. This is not true rigid-ring
+  # enforcement, but it helps bond/angle terms resist vdW-driven bending.
+  torsion_weight: 5.0
+
+# =============================================================================
+# Data Loading
+# =============================================================================
+data:
+  data_dir: '/home/mhjang/workspace/flex/data_v2_plinder_flat'
+  test_data_dir: '/home/mhjang/workspace/flex/test_data'
+  batch_size: 16               # timestep/noise copies per system
+  systems_per_batch: 4        # distinct systems per GPU step; total copies = 64
+  pad_systems: true            # one padded batch instead of iterating a Python list
+  val_batches: 2000
+  num_workers: 4
+  shuffle: true
+  pin_memory: true
+  preload: true
+  split_csv: '/home/mhjang/workspace/flex/data_v2_plinder/splits.csv'
+
+# =============================================================================
+# Optimizer (Muon + AdamW)
+# =============================================================================
+optimizer:
+  optimizer_type: 'muon'
+  muon_lr: 5.0e-3
+  muon_momentum: 0.95
+  adam_lr: 1.0e-5
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  adam_eps: 1.0e-10
+  muon_weight_decay: 5.0e-4
+  adam_weight_decay: 1.0e-4
+
+# =============================================================================
+# Scheduler
+# =============================================================================
+scheduler:
+  warmup_steps: 2000
+  start_factor: 1.0e-3
+  end_factor: 1.0e-5
+
+# =============================================================================
+# EMA
+# =============================================================================
+ema:
+  enabled: true
+  decay: 0.9999
+
+# =============================================================================
+# Logging
+# =============================================================================
+logging:
+  use_wandb: true
+  wandb_project: 'flex'
+  wandb_run_name: v5_32m_phys_balanced
+  wandb_entity: null
+  log_every_n_steps: 200
+  watch_model: true
+  watch_log: 'all'
+  watch_log_freq: 10000
+  checkpoint_dir: 'checkpoints'
+  save_top_k: 3
+  checkpoint_every_n_steps: 5000
+
+# =============================================================================
+# Training
+# =============================================================================
+training:
+  model_class: V5
+  max_steps: 400000
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 8
+  val_check_interval: 5000
+  precision: 'bf16-mixed'
+  devices: 4
+  seed: 990131
+  phys_loss_warmup_steps: 5000
+  num_rmsd_samples: 50
+  num_steps: 50
+  timestep_sampler: 'uniform'
+  use_config: true
