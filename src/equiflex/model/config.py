@@ -30,8 +30,8 @@ class DataConfig:
     val_ratio: float = 0.05        # Fraction of systems for validation (only used if split_csv is None)
     val_batches: int = 100         # Number of validation batches per validation epoch
 
-    # Pre-computed splits from LP_PDBBind CSV (recommended)
-    split_csv: Optional[str] = 'scripts/lp_pdbbind/LP_PDBBind.csv'
+    # Pre-computed splits CSV (recommended)
+    split_csv: Optional[str] = 'data_v2_plinder/splits_v9.csv'
 
     # Legacy: directory-based splits (deprecated, use split_csv instead)
     split_dir: Optional[str] = None

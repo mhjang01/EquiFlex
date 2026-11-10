@@ -51,7 +51,6 @@ def generate_aa_reference_data(aa_code: str):
     else:
         aa_atoms = STD_AA_ATOMS[aa_code]
     
-    # Extract atom data
     len_atoms = len(aa_atoms)
     
     mol = get_rdkit_mol(aa_path)
@@ -101,7 +100,6 @@ def extract_ligand_dist_info(mol: Chem.Mol):
     # Add Hs for better conformer generation
     mol = Chem.AddHs(mol)
 
-    # Try embedding with ETKDGv3
     result = AllChem.EmbedMolecule(mol, AllChem.ETKDGv3())
 
     # EmbedMolecule returns -1 on failure
@@ -112,7 +110,6 @@ def extract_ligand_dist_info(mol: Chem.Mol):
             print(f'Failed to generate reference conformer')
             return None
 
-    # Check if conformer was generated
     if mol.GetNumConformers() == 0:
         return None
 

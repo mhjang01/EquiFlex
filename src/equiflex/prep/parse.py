@@ -31,7 +31,6 @@ def sanitize_sequence(sequence: str) -> str:
         Sanitized sequence with only standard amino acid codes and 'X'
     '''
     # Replace all parenthesis-enclosed tokens with 'X'
-    # Pattern matches: ( followed by any characters followed by )
     sanitized = re.sub(r'\([^)]+\)', 'X', sequence)
 
     # Replace any remaining non-standard characters with 'X'
@@ -127,15 +126,12 @@ class ExcludeFlags:
         if self.altloc and altloc not in ('.', ''):
             return True
 
-        # Hydrogen filter
         if self.hydrogens and atom_id.strip().startswith('H'):
             return True
 
-        # Water filter
         if self.water and comp_id.upper() in self.WATER_RESIDUES:
             return True
 
-        # Deuterium filter
         if self.deuterium and atom_id.strip().startswith('D'):
             return True
         
@@ -171,7 +167,6 @@ def gemmi_parse_protein(block, excludeflags: Optional[ExcludeFlags] = None):
     if excludeflags is None:
         excludeflags = ExcludeFlags.default()
 
-    # Extract column data
     pdb_group_data = block.find_values('_atom_site.group_PDB')
     atom_type_data = block.find_values('_atom_site.type_symbol')
     atom_id_data = block.find_values('_atom_site.label_atom_id')
@@ -201,7 +196,6 @@ def gemmi_parse_protein(block, excludeflags: Optional[ExcludeFlags] = None):
     block.find_values('_struct_asym.id')
     block.find_values('_struct_asym.entity_id')
     
-    # crate mappings from asym_id to entity_id
     asym_to_entity = {asym_id: entity_id for asym_id, entity_id in zip(asym_id_data, entity_id_data)}
 
     # Hierarchical data structure: chain -> residue -> atoms
@@ -232,7 +226,6 @@ def gemmi_parse_protein(block, excludeflags: Optional[ExcludeFlags] = None):
         # (see bug audit in v2_plinder/pocket_cutoff_violations.json).
         chain_id = asym_id.upper()
         
-        # Apply exclusion filters
         if excludeflags.should_exclude(
             group_pdb=group_pdb,
             atom_id=atom_id,
@@ -267,7 +260,6 @@ def gemmi_parse_protein(block, excludeflags: Optional[ExcludeFlags] = None):
                 'atoms': []
             }
         
-        # Add atom data
         structure[chain_id][res_key]['atoms'].append({
             'name': atom_id,
             'element': atom_type,
@@ -336,7 +328,6 @@ def gemmi_parse_pdb(structure: gemmi.Structure, excludeflags: Optional[ExcludeFl
                 resnum = residue.seqid.num
                 icode = residue.seqid.icode.strip() if residue.seqid.icode else ''
 
-                # Skip water
                 if excludeflags.water and resname in ExcludeFlags.WATER_RESIDUES:
                     continue
 
@@ -344,7 +335,6 @@ def gemmi_parse_pdb(structure: gemmi.Structure, excludeflags: Optional[ExcludeFl
                 if excludeflags.hetatm and is_hetatm:
                     continue
 
-                # Only process standard amino acids
                 if resname not in AA_3_TO_1:
                     continue
 
@@ -375,19 +365,15 @@ def gemmi_parse_pdb(structure: gemmi.Structure, excludeflags: Optional[ExcludeFl
                     # Apply exclusion filters (excluding hetatm check since we did it above)
                     group_pdb = 'ATOM'  # Already filtered hetatm residues above
 
-                    # Check hydrogen filter
                     if excludeflags.hydrogens and atom_name.strip().startswith('H'):
                         continue
 
-                    # Check deuterium filter
                     if excludeflags.deuterium and atom_name.strip().startswith('D'):
                         continue
 
-                    # Check altloc filter
                     if excludeflags.altloc and altloc not in ('.', '', '\0'):
                         continue
 
-                    # Check OXT filter
                     if excludeflags.oxt_oxygen and atom_name.strip() == 'OXT':
                         continue
 
@@ -660,17 +646,14 @@ def extract_ligand_data(mol_path: Path) -> Dict:
         print(f"Failed to create RDKit molecule from {mol_path}")
         return None
     
-    # Extract atom data
     canonical_ranks = AllChem.CanonicalRankAtoms(mol)
     mapping = {i: str(canonical_ranks[i]+1) for i in range(mol.GetNumAtoms())}
     mol_ctx = compute_mol_context(mol)
     atoms = [extract_atom_data(atom, f'{atom.GetSymbol().upper()}{mapping[atom.GetIdx()]}', mol_ctx=mol_ctx)
              for atom in mol.GetAtoms()]
 
-    # Extract bond data
     bonds = [extract_bond_data(bond) for bond in mol.GetBonds()]
 
-    # Extract coordinates
     coords = extract_coordinates(mol)
 
     data = {
@@ -741,14 +724,12 @@ def get_sp2_torsion_indices(
     hybridization = 'SP2'
     num_atoms = len(atoms)
 
-    # Build adjacency list from bonds
     neighbors = {i: [] for i in range(num_atoms)}
     for bond in bonds:
         src, dst = bond['begin_atom_idx'], bond['end_atom_idx']
         neighbors[src].append(dst)
         neighbors[dst].append(src)
 
-    # Find atoms with target hybridization
     target_atoms = [i for i, atom in enumerate(atoms) if atom['hybridization'] == hybridization]
 
     torsions = []
@@ -801,14 +782,12 @@ def get_all_torsion_indices(
     '''
     num_atoms = len(atoms)
 
-    # Build adjacency list
     neighbors = {i: [] for i in range(num_atoms)}
     for bond in bonds:
         src, dst = bond['begin_atom_idx'], bond['end_atom_idx']
         neighbors[src].append(dst)
         neighbors[dst].append(src)
 
-    # Categorize atoms by hybridization
     sp2_atoms = set(i for i, a in enumerate(atoms) if a['hybridization'] == 'SP2')
     sp3_atoms = set(i for i, a in enumerate(atoms) if a['hybridization'] == 'SP3')
 
@@ -823,7 +802,6 @@ def get_all_torsion_indices(
             continue
         seen_bonds.add(bond_key)
 
-        # Determine bond type
         b_sp2, c_sp2 = b in sp2_atoms, c in sp2_atoms
         b_sp3, c_sp3 = b in sp3_atoms, c in sp3_atoms
 
@@ -836,7 +814,6 @@ def get_all_torsion_indices(
         else:
             continue  # Skip other hybridization combinations
 
-        # Get neighbor candidates
         a_candidates = [n for n in neighbors[b] if n != c]
         d_candidates = [n for n in neighbors[c] if n != b]
 
@@ -860,11 +837,9 @@ def is_adjacent(conf_1: np.ndarray, conf_2: np.ndarray, distance_threshold: floa
         - conf_1: [N, 3] or [3,] (single point)
         - conf_2: [M, 3] or [3,] (single point)
     '''
-    # Ensure 2D arrays
     conf_1 = np.atleast_2d(conf_1)
     conf_2 = np.atleast_2d(conf_2)
     
-    # Compute pairwise distances: [N, M]
     # Using broadcasting: conf_1[:, None, :] - conf_2[None, :, :] -> [N, M, 3]
     diff = conf_1[:, None, :] - conf_2[None, :, :]
     dist = np.linalg.norm(diff, axis=2)
@@ -878,11 +853,9 @@ def is_clash(conf_1: np.ndarray, conf_2: np.ndarray, clash_threshold: float = 1.
         - conf_1: [N, 3] or [3,] (single point)
         - conf_2: [M, 3] or [3,] (single point)
     '''
-    # Ensure 2D arrays
     conf_1 = np.atleast_2d(conf_1)
     conf_2 = np.atleast_2d(conf_2)
     
-    # Compute pairwise distances: [N, M]
     # Using broadcasting: conf_1[:, None, :] - conf_2[None, :, :] -> [N, M, 3]
     diff = conf_1[:, None, :] - conf_2[None, :, :]
     dist = np.linalg.norm(diff, axis=2)
@@ -914,7 +887,6 @@ def get_valid_ligands(mol_data_list: List[Dict], clash_threshold: float = 1.0, d
     if len(mol_data_list) == 1:
         return mol_data_list
 
-    # Sort by number of atoms (descending) - largest first
     sorted_ligands = sorted(mol_data_list, key=lambda x: len(x['atoms']), reverse=True)
 
     # Initialize with largest ligand as seed
@@ -931,7 +903,6 @@ def get_valid_ligands(mol_data_list: List[Dict], clash_threshold: float = 1.0, d
             if is_adjacent(valid_coords, ligand_data['coords'], distance_threshold)\
                 and not is_clash(valid_coords, ligand_data['coords'], clash_threshold):
                 valid_ligands.append(ligand_data)
-                # Stack coordinates for next iteration
                 valid_coords = np.vstack([valid_coords, ligand_data['coords']])
                 changed = True
             else:
@@ -947,10 +918,8 @@ def get_pocket_residues(protein_data: Dict, ligand_data: List[Dict],
     pocket and ligand records, which would produce cdist NaN gradients during
     training (∂‖x−y‖/∂x = (x−y)/‖x−y‖ is undefined at coincidence).
     """
-    # Extract total conformer data from ligand data (concatenate all ligand coords)
     total_coords = np.concatenate([lig['coords'] for lig in ligand_data], axis=0)
 
-    # Extract sequence data from protein data
     pocket_data, sequence_data = {}, {}
 
     for chain_id, chain_data in protein_data.items():
@@ -985,7 +954,6 @@ def load_aa_reference(resname: str) -> Optional[Dict]:
     Load amino acid reference data from npz file and convert to a regular dict.
     Returns UNK if resname is non-standard
     '''
-    # Check if resname is in standard amino acids
     if resname not in STD_AA_ATOMS:
         print(f"Non-standard residue: {resname}, falling back to UNK")
         ref_path = Path(f'./.refs/UNK.npz')
@@ -1003,7 +971,6 @@ def load_aa_reference(resname: str) -> Optional[Dict]:
         aa_data = {}
         for key in npz_data.files:
             val = npz_data[key]
-            # Convert 0-d numpy arrays to Python scalars
             if isinstance(val, np.ndarray) and val.ndim == 0:
                 aa_data[key] = val.item()
             else:
@@ -1037,7 +1004,6 @@ def overwrite_coords_on_reference_data(pocket_data: Dict):
             else:
                 atom_orders = STD_AA_ATOMS[resname]
 
-            # Overwrite coords on reference data, with orders from atom_orders
             for atom_data in residue['atoms']:
                 per_residue_temp_data[atom_data['name']] = atom_data['coords']
 
@@ -1051,7 +1017,6 @@ def overwrite_coords_on_reference_data(pocket_data: Dict):
             # Drop additional atoms that don't exist in atom_orders
             per_residue_temp_data = {k: v for k, v in per_residue_temp_data.items() if k in atom_orders}
 
-            # Sort by atom_orders
             per_residue_temp_data = [per_residue_temp_data[atom_order] for atom_order in atom_orders]
 
             # Create new residue data with both ref_coords and pocket coords

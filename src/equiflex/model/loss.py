@@ -20,18 +20,12 @@ import csv
 from equiflex.prep.const import ATOM_CONTEXT_DIM
 
 
-# ============================================
-# Timestep schedules for auxiliary losses
-# ============================================
 
 def linear_schedule(t: torch.Tensor) -> torch.Tensor:
     """Weight = t. Linear ramp, no suppression at low t."""
     return t
 
 
-# ============================================
-# vdW radius lookup
-# ============================================
 
 def _load_period_group_to_vdw_radius() -> torch.Tensor:
     table = torch.zeros((8, 20), dtype=torch.float32)
@@ -83,9 +77,6 @@ def _vdw_radius_from_features(atom_feats: torch.Tensor) -> torch.Tensor:
     return lookup[period_idx, group_idx]
 
 
-# ============================================
-# Unrolling
-# ============================================
 
 def unroll_to_x1(
     model: nn.Module,
@@ -166,9 +157,6 @@ def unroll_to_x1(
     return {'rec_pred': rec_pred, 'lig_pred': lig_pred}
 
 
-# ============================================
-# Standalone utilities
-# ============================================
 
 def smooth_lddt_loss(
     pred_coords: torch.Tensor,
@@ -243,9 +231,6 @@ def quadratic_linear_penalty(deviation: torch.Tensor, cutoff: float) -> torch.Te
     linear = cutoff_t ** 2 + 2 * cutoff_t * (deviation - cutoff_t)
     return torch.where(deviation <= cutoff_t, quadratic, linear)
 
-# ============================================
-# Modular auxiliary loss classes
-# ============================================
 
 class AuxiliaryLoss(nn.Module):
     """Base class for auxiliary losses on unrolled predictions.
@@ -747,9 +732,6 @@ class ChiralAtomLoss(AuxiliaryLoss):
         return loss / count.clamp(min=1)
 
 
-# ============================================
-# Config and FlexLoss
-# ============================================
 
 @dataclass
 class LossConfig:
@@ -782,8 +764,8 @@ class LossConfig:
     vdw_buffer: float = 0.10
     vdw_cutoff: float = 6.0   # Å — only pairs closer than this contribute
     vdw_linear_onset: bool = True   # p^2 + 2p (legacy) vs pure p^2 mean term; see VdWClashLoss
-    # vdw_form 'mean': VdWClashLoss (sum p^2 / n_pairs, checkpoints up to v7 step 17k);
-    # 'hinge': VdWHingeLoss, per-ligand-atom hinge over all pairs with rec-rec at vdw_rec_rec_ratio
+    # vdw_form 'mean': VdWClashLoss (sum p^2 / n_pairs); 'hinge': VdWHingeLoss,
+    # per-ligand-atom hinge over all pairs with rec-rec at vdw_rec_rec_ratio
     vdw_form: str = 'mean'
     vdw_rec_rec_ratio: float = 0.15
 
@@ -798,7 +780,7 @@ class LossConfig:
     torsion_weight: float = 1.0
 
     # Ligand stereocentres (ChiralAtomLoss); needs chiral_atom_indices in the
-    # featurised data (scripts/backfill_chiral_indices.py for older sets)
+    # featurised data
     chiral_weight: float = 0.0
     chiral_buffer: float = 0.5236   # rad; 30 deg margin from the planar state
 
@@ -915,7 +897,6 @@ class FlexLoss(nn.Module):
             losses['total'] = flow_contribution
             return losses
 
-        # Unroll for auxiliary losses
         # Reuse the flow-matching forward as the unroll's first Euler step:
         # pred_flow == model(x_t, t), identical to unroll step 0. Split by n_rec.
         init_rec_flow = init_lig_flow = None

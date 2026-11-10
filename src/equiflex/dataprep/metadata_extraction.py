@@ -28,7 +28,6 @@ def get_plinder_systems():
         ("system_num_ligand_chains", ">", 0),
         ("system_num_protein_chains", ">", 0),
         ("system_num_pocket_residues", ">", 2),
-        #("system_num_pocket_residues", "<", 40),
         ("system_proper_num_ligand_chains", ">", 0),
         ("system_proper_ligand_max_molecular_weight", "<", 700),
         ("ligand_num_heavy_atoms", "<", 100),

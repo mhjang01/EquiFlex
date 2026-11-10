@@ -228,7 +228,6 @@ def process_ligands(ligands: List[Dict]) -> Dict:
     smiles_list = []
     n_atoms_per_ligand = []
 
-    # For torsion indices
     all_sp2_torsions = []
     torsion_ligand_idx = []
     all_constraint_matrices = []
@@ -237,15 +236,12 @@ def process_ligands(ligands: List[Dict]) -> Dict:
     all_bonds_data = []  # Store (global_i, global_j, features) for later matrix construction
 
     for lig_idx, lig_data in enumerate(ligands):
-        # Atom features
         atom_feats = featurize_ligand_atoms(lig_data)
         all_atom_features.append(atom_feats)
 
-        # Ground truth coordinates
         coords = torch.tensor(lig_data['coords'], dtype=torch.float32)
         all_coords.append(coords)
 
-        # Reference conformer coordinates
         n_atoms = len(lig_data['atoms'])
         if 'ref_coords' in lig_data and lig_data['ref_coords'] is not None:
             ref_coords = torch.tensor(lig_data['ref_coords'], dtype=torch.float32)
@@ -274,7 +270,6 @@ def process_ligands(ligands: List[Dict]) -> Dict:
             all_sp2_torsions.append(global_torsions)
             torsion_ligand_idx.extend([lig_idx] * len(global_torsions))
 
-        # Constraint matrix
         if 'constraint_matrix' in lig_data and lig_data['constraint_matrix'] is not None:
             constraint_matrix = torch.tensor(lig_data['constraint_matrix'], dtype=torch.float32)
             all_constraint_matrices.append(constraint_matrix)
@@ -285,7 +280,6 @@ def process_ligands(ligands: List[Dict]) -> Dict:
         n_atoms_per_ligand.append(n_atoms)
         atom_offset += n_atoms
 
-    # Stack all features
     atom_features = torch.cat(all_atom_features, dim=0)
     coords = torch.cat(all_coords, dim=0)
     ref_coords = torch.cat(all_ref_coords, dim=0)
@@ -302,14 +296,12 @@ def process_ligands(ligands: List[Dict]) -> Dict:
         constraint_matrix[cm_offset:cm_offset + n_i, cm_offset:cm_offset + n_i] = cm
         cm_offset += n_i
 
-    # Build full bond matrix
     bond_dim = 26
     bond_features = torch.zeros(total_atoms, total_atoms, bond_dim)
     for global_i, global_j, feats in all_bonds_data:
         bond_features[global_i, global_j] = feats
         bond_features[global_j, global_i] = feats
 
-    # Stack torsion indices
     if all_sp2_torsions:
         sp2_torsion_indices = torch.tensor(np.concatenate(all_sp2_torsions), dtype=torch.long)
         torsion_ligand_idx = torch.tensor(torsion_ligand_idx, dtype=torch.long)
@@ -363,7 +355,6 @@ def process_pocket_residues(pocket_residues: Dict) -> Dict:
     residue_keys = []
     n_atoms_per_residue = []
 
-    # For torsion indices
     all_sp2_torsions = []
     torsion_residue_idx = []
     all_constraint_matrices = []
@@ -397,7 +388,6 @@ def process_pocket_residues(pocket_residues: Dict) -> Dict:
                 ref_coords = coords.clone()
             all_ref_coords.append(ref_coords)
 
-            # Missing mask
             missing_mask = torch.tensor(res_data['missing_masks'], dtype=torch.bool)
             all_missing_masks.append(missing_mask)
 
@@ -423,7 +413,6 @@ def process_pocket_residues(pocket_residues: Dict) -> Dict:
             residue_c_idx.append(atom_offset + atom_names.index('C') if 'C' in atom_names else -1)
             residue_is_gly.append(res_data.get('aa_code', resname) == 'GLY')
 
-            # UID vector
             residue_uid_vec.extend([residue_idx] * n_atoms)
 
             # Collect bonds with global indices
@@ -452,7 +441,6 @@ def process_pocket_residues(pocket_residues: Dict) -> Dict:
                     all_sp2_torsions.append(global_torsions)
                     torsion_residue_idx.extend([residue_idx] * len(global_torsions))
 
-            # Constraint matrix
             if 'constraint_matrix' in res_data and res_data['constraint_matrix'] is not None:
                 constraint_matrix = torch.tensor(res_data['constraint_matrix'], dtype=torch.float32)
                 all_constraint_matrices.append(constraint_matrix)
@@ -467,7 +455,6 @@ def process_pocket_residues(pocket_residues: Dict) -> Dict:
     if not all_atom_features:
         return None
 
-    # Stack all features
     atom_features = torch.cat(all_atom_features, dim=0)
     coords = torch.cat(all_coords, dim=0)
     ref_coords = torch.cat(all_ref_coords, dim=0)
@@ -483,7 +470,6 @@ def process_pocket_residues(pocket_residues: Dict) -> Dict:
         'is_gly': torch.tensor(residue_is_gly, dtype=torch.bool),
     }
 
-    # Build full bond matrix
     total_atoms = atom_features.shape[0]
     bond_dim = 26
     bond_features = torch.zeros(total_atoms, total_atoms, bond_dim)
@@ -491,11 +477,9 @@ def process_pocket_residues(pocket_residues: Dict) -> Dict:
         bond_features[global_i, global_j] = feats
         bond_features[global_j, global_i] = feats
     
-    # Build full constraint matrix
     # Concatenate square matrices along the diagonal
     constraint_matrices = torch.block_diag(*all_constraint_matrices)
 
-    # Stack torsion indices
     if all_sp2_torsions:
         sp2_torsion_indices = torch.tensor(np.concatenate(all_sp2_torsions), dtype=torch.long)
         torsion_residue_idx = torch.tensor(torsion_residue_idx, dtype=torch.long)
@@ -541,7 +525,6 @@ def extract_esm3_for_system(
     Returns:
         Tensor [n_residues, 1536] ordered to match residue_keys
     '''
-    # Extract embeddings using the extractor
     pocket_embeddings = esm3_extractor.extract_pocket_embeddings(sequence_data, pocket_residues, system_dir=system_dir)
 
     # Reorder to match residue_keys
@@ -580,10 +563,8 @@ def extract_unimol_for_system(
     smiles_list = [lig['smiles'] for lig in ligands]
     atoms_list = [lig['atoms'] for lig in ligands]
 
-    # Batch extraction
     embeddings_list = unimol_extractor.extract_batch(smiles_list, atoms_list)
 
-    # Concatenate all embeddings
     all_embeddings = []
     for i, emb in enumerate(embeddings_list):
         if emb is None:
@@ -618,7 +599,6 @@ def featurize_single_system(system_dir: Path, cleanup_invalid: bool = True, skip
     system_name = system_dir.name
     stats = {'n_ligand_atoms': 0, 'n_pocket_atoms': 0, 'n_missing_atoms': 0, 'removed': False}
 
-    # Check required files
     ligands_path = system_dir / 'ligands.pkl'
     pocket_path = system_dir / 'pocket_residues.pkl'
 
@@ -626,11 +606,9 @@ def featurize_single_system(system_dir: Path, cleanup_invalid: bool = True, skip
         return system_name, False, "missing input files", stats
 
     try:
-        # Load data
         ligands = load(ligands_path)
         pocket_residues = load(pocket_path)
 
-        # Check for empty ligands and cleanup if requested
         if len(ligands) < 1:
             if cleanup_invalid:
                 shutil.rmtree(system_dir)
@@ -639,7 +617,6 @@ def featurize_single_system(system_dir: Path, cleanup_invalid: bool = True, skip
             else:
                 return system_name, False, "no ligands", stats
 
-        # Check if already processed
         ligand_out = system_dir / 'ligand_features.pt'
         pocket_out = system_dir / 'pocket_features.pt'
         if skip_existing and ligand_out.exists() and pocket_out.exists():
@@ -655,11 +632,9 @@ def featurize_single_system(system_dir: Path, cleanup_invalid: bool = True, skip
             except Exception as exc:
                 print(f'{system_name}: rebuilding graph features: {exc}')
 
-        # Process ligands
         ligand_features = process_ligands(ligands)
         stats['n_ligand_atoms'] = ligand_features['atom_features'].shape[0]
 
-        # Process pocket residues
         pocket_features = process_pocket_residues(pocket_residues)
 
         if pocket_features is None:
@@ -673,7 +648,6 @@ def featurize_single_system(system_dir: Path, cleanup_invalid: bool = True, skip
         stats['n_pocket_atoms'] = pocket_features['atom_features'].shape[0]
         stats['n_missing_atoms'] = int(pocket_features['missing_mask'].sum().item())
 
-        # Save
         torch.save(ligand_features, ligand_out)
         torch.save(pocket_features, pocket_out)
 
@@ -709,7 +683,6 @@ def run_step1_graph_featurization(
         delayed(featurize_single_system)(d, cleanup_invalid, skip_existing) for d in tqdm(system_dirs, desc="Graph features")
     )
 
-    # Collect statistics
     global_stats = FeaturizationStats()
     valid_dirs = []
     for name, success, msg, stats in results:
@@ -722,7 +695,6 @@ def run_step1_graph_featurization(
                 global_stats.add_pocket_stats(stats['n_pocket_atoms'], stats['n_missing_atoms'])
             valid_dirs.append(data_path / name)
 
-    # Summary
     success = sum(1 for _, s, m, _ in results if s and 'success' in m)
     skipped = sum(1 for _, s, m, _ in results if s and 'skipped' in m)
     removed = sum(1 for _, _, m, _ in results if 'removed' in m)
@@ -730,7 +702,6 @@ def run_step1_graph_featurization(
 
     print(f"Step 1 Complete: Success={success}, Skipped={skipped}, Removed={removed}, Failed={failed}")
 
-    # Log failures
     failures = [(n, m) for n, s, m, _ in results if not s and 'removed' not in m]
     if failures:
         print(f"Failures: {len(failures)}")
@@ -774,20 +745,17 @@ def run_step2_esm3_extraction(
         system_name = system_dir.name
         esm3_out = system_dir / 'esm3_embeddings.pt'
 
-        # Skip if exists
         if skip_existing and esm3_out.exists():
             skip_count += 1
             succeeded_dirs.append(system_dir)
             continue
 
         try:
-            # Load required data
             pocket_residues = load(system_dir / 'pocket_residues.pkl')
             sequence_data = load(system_dir / 'sequence_data.pkl')
             pocket_features = torch.load(system_dir / 'pocket_features.pt', weights_only=False)
             residue_keys = pocket_features['residue_keys']
 
-            # Extract ESM3 embeddings
             esm3_embeddings = extract_esm3_for_system(
                 esm3_extractor, pocket_residues, sequence_data, residue_keys, system_dir=system_dir
             )
@@ -1039,7 +1007,6 @@ def main(
             data_path, valid_dirs, unimol_size, skip_existing=skip_existing, strict=strict
         )
 
-    # Final statistics
     global_stats.print_summary()
     print(f"Final valid directories: {len(valid_dirs)}")
 

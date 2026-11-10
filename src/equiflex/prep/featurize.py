@@ -36,7 +36,6 @@ def one_hot_encode(value, categories: List[Any]) -> torch.Tensor:
         one_hot[categories.index(value)] = 1
         return one_hot
     else:
-        # Return all zeros
         return one_hot
 
 def gaussian_rbf(value: float,
@@ -237,7 +236,6 @@ class ESM3Extractor:
                 expected_aa = sequence[seq_idx] if seq_idx < len(sequence) else None
                 actual_aa = res_data.get('aa_code', resname)
 
-                # Convert 3-letter to 1-letter if needed
                 if len(actual_aa) == 3:
                     actual_aa = AA_3_TO_1.get(actual_aa, 'X')
 

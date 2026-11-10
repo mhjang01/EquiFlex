@@ -208,7 +208,6 @@ def visualize_final_samples(
 
     fig = plt.figure(figsize=(5 * n_cols, 5 * n_rows))
 
-    # Compute global bounds
     all_coords = np.concatenate([
         rec_final.reshape(-1, 3),
         lig_final.reshape(-1, 3)
@@ -336,7 +335,6 @@ def visualize_all_trajectories(
 
     fig = plt.figure(figsize=(4 * n_cols, 4 * n_rows))
 
-    # Global bounds
     all_coords = np.concatenate([
         rec_traj.reshape(-1, 3),
         lig_traj.reshape(-1, 3)
@@ -415,14 +413,12 @@ def create_trajectory_gif(
 
     T = rec_traj.shape[0]
 
-    # Select frames evenly spaced through trajectory
     frame_indices = np.linspace(0, T - 1, n_frames, dtype=int)
 
     # Compute global bounds using final structure (centered, reasonable range)
     final_coords = np.concatenate([rec_traj[-1], lig_traj[-1]], axis=0)
     max_range = np.abs(final_coords).max() * 1.3
 
-    # Create figure
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111, projection='3d')
 
@@ -448,7 +444,6 @@ def create_trajectory_gif(
         ax.set_ylabel('Y (Å)')
         ax.set_zlabel('Z (Å)')
 
-        # Rotate view if enabled
         if rotate:
             azim = azim_start + (azim_end - azim_start) * frame_idx / n_frames
             ax.view_init(elev=elev, azim=azim)
@@ -461,7 +456,6 @@ def create_trajectory_gif(
 
     anim = FuncAnimation(fig, update, frames=n_frames, blit=False)
 
-    # Save as GIF
     writer = PillowWriter(fps=fps)
     anim.save(save_path, writer=writer, dpi=dpi)
     print(f"Saved GIF to {save_path}")
@@ -612,7 +606,6 @@ def load_results_with_data(
     data = None
     if data_path is not None:
         data = torch.load(data_path, map_location='cpu')
-        # Also load metadata if exists
         metadata_path = Path(data_path).parent / 'metadata.pt'
         if metadata_path.exists():
             metadata = torch.load(metadata_path, map_location='cpu')
@@ -639,7 +632,6 @@ def main():
 
     results, data = load_results_with_data(args.results, args.data)
 
-    # Extract bond and uid info if data available
     rec_bonds = None
     lig_bonds = None
     rec_uid_vec = None

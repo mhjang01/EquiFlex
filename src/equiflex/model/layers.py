@@ -251,7 +251,6 @@ class MultiHeadAttention(nn.Module):
         # Compute attention weights manually if we need to return stats
         attn_stats = None
         if return_attn:
-            # Manual attention computation to get weights
             scale = 1.0 / math.sqrt(self.head_dim)
             attn_weights = torch.matmul(q, k.transpose(-2, -1)) * scale  # [B, H, N_q, N_k]
             if attn_mask is not None:
@@ -326,7 +325,6 @@ class TimeEmbedder(nn.Module):
         
     def forward(self, timesteps: torch.Tensor):
 
-        # Handle 1-dim input
         if timesteps.dim() == 1:
             timesteps = timesteps.unsqueeze(-1)
 
@@ -439,7 +437,6 @@ class AtomTransformer(nn.Module):
         self.w_cond = nn.Linear(single_hidden_dim, single_hidden_dim, bias = False)  # For GLU
         self.sigmoid = nn.Sigmoid()
 
-        # Pair projection removed - p is now passed in from outside
         self.w_pair_out = nn.Linear(pair_hidden_dim, pair_hidden_dim, bias = False)  # Projects mixed pair features
 
         # Outer-product-mean: q_pair_ij = sum_cd a_ic b_jd W_cdk (directed pairs)
@@ -514,7 +511,6 @@ class AtomTransformer(nn.Module):
         if pair_mask_f is not None:
             p = p * pair_mask_f
 
-        # Project p to attention bias
         attn_bias = self.pair_to_bias(p)  # [B, N, N, 1 or H]
         # Attention connectivity follows pair_mask when given (so a block-diagonal
         # pair_mask yields block-diagonal attention); else fall back to padding.
@@ -542,7 +538,6 @@ class AtomTransformer(nn.Module):
         if mask_f is not None:
             q = q * mask_f
 
-        # Mix again
         p = self.mix_single_to_pair(q, p)
         if pair_mask_f is not None:
             p = p * pair_mask_f
@@ -1032,7 +1027,7 @@ class GeometricAttentionModule(nn.Module):
                     nn.init.ones_(m.weight)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
-        # Smaller init on output paths for stability (matches V4)
+        # Smaller init on output paths for stability
         for m in [self.scalar_out, self.vector_out]:
             if hasattr(m, 'weight') and m.weight is not None:
                 nn.init.xavier_uniform_(m.weight, gain=0.01)

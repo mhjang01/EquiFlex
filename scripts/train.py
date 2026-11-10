@@ -30,7 +30,7 @@ torch.serialization.add_safe_globals([
 
 def main():
     parser = argparse.ArgumentParser(description='Train Flex model')
-    parser.add_argument('--config', type=str, default='configs/v10_512.yaml',
+    parser.add_argument('--config', type=str, default='configs/equiflex_config.yaml',
                         help='Path to config file')
     parser.add_argument('--resume', type=str, default=None,
                         help='Path to checkpoint to resume from')
@@ -49,7 +49,6 @@ def main():
     if args.seed is not None:
         config.training.seed = args.seed
 
-    # Set torch lighting settings for training
     pl.seed_everything(config.training.seed)
 
     local_rank = int(os.environ.get('LOCAL_RANK', 0))
@@ -64,7 +63,6 @@ def main():
     # Set float32 matmul precision for tensor cores
     torch.set_float32_matmul_precision('high')
 
-    # Create dataloaders
     preload_data = getattr(config.data, 'preload', False)
     train_loader, val_loader, train_systems, val_systems, _ = get_train_val_dataloaders(
         data_dir=config.data.data_dir,
@@ -125,7 +123,6 @@ def main():
     trainer_module.pb_dataloader_ref = pb_loader
     print('Loaded FlexTrainer')
 
-    # Callbacks
     callbacks = []
     checkpoint_callback = ModelCheckpoint(
         dirpath=f'{config.logging.checkpoint_dir}/{config.logging.wandb_run_name or "flex"}',
@@ -266,7 +263,6 @@ def main():
 
     trainer = pl.Trainer(**trainer_kwargs)
 
-    # Train
     trainer.fit(
         trainer_module,
         train_dataloaders=train_loader,

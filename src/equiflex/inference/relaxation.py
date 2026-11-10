@@ -24,9 +24,7 @@ except ImportError:
     from ..prep.const import STD_AA_ATOMS, NONSTD_AA_ATOMS, PROTEIN_ATOM_NAMES, ELEMENT_VOCAB
 
 
-# ---------------------------------------------------------------------------
 # Protein file discovery
-# ---------------------------------------------------------------------------
 
 def find_protein_path(
     system_name: str,
@@ -41,9 +39,7 @@ def find_protein_path(
     return None
 
 
-# ---------------------------------------------------------------------------
 # Element decoding from featurized atom names
-# ---------------------------------------------------------------------------
 
 _ELEMENT_FEAT_OFFSET = len(PROTEIN_ATOM_NAMES) + 1  # 37 protein-name dims + 1 source flag
 
@@ -65,9 +61,7 @@ def _element_from_protein_atom_name(name: str) -> str:
     return name[0]
 
 
-# ---------------------------------------------------------------------------
 # Ligand atom-ordering (SDF order ↔ SMILES-canonical order)
-# ---------------------------------------------------------------------------
 
 def _find_sdf_to_smi_mapping(
     smiles: str,
@@ -124,9 +118,7 @@ def _find_sdf_to_smi_mapping(
     return smi_to_sdf
 
 
-# ---------------------------------------------------------------------------
 # Pocket structure reconstruction  (gemmi)
-# ---------------------------------------------------------------------------
 
 def _build_pocket_gemmi(
     pocket_feats: Dict,
@@ -405,9 +397,7 @@ def _build_full_protein_gemmi(
     return st
 
 
-# ---------------------------------------------------------------------------
 # Ligand mol reconstruction  (RDKit)
-# ---------------------------------------------------------------------------
 
 def _build_ligand_mols(
     ligand_feats: Dict,
@@ -461,9 +451,7 @@ def _build_ligand_mols(
     return mols, mappings
 
 
-# ---------------------------------------------------------------------------
 # CIF I/O
-# ---------------------------------------------------------------------------
 
 _BOND_ORDER_MMCIF = {
     'SINGLE':   'SING',
@@ -788,9 +776,7 @@ def write_complex_cif_from_dir(
     return write_complex_cif(pf, lf, rec_coords, lig_coords, backbone_com, output_path)
 
 
-# ---------------------------------------------------------------------------
 # RMSD from CIF files
-# ---------------------------------------------------------------------------
 
 def compute_cif_rmsd(
     pred_path: Union[str, Path],
@@ -839,9 +825,7 @@ def compute_cif_rmsd(
     }
 
 
-# ---------------------------------------------------------------------------
 # Ligand SDF output and coordinate/topology RMSD
-# ---------------------------------------------------------------------------
 
 def _stored_atom_order_for_mol(mol, ligand_data: Dict) -> Optional[List[int]]:
     """Return ``stored_idx`` for each atom in *mol*, using canonical-rank names.
@@ -1071,9 +1055,7 @@ def write_ligand_sdf(
     return output_path
 
 
-# ---------------------------------------------------------------------------
 # Bond type lookup
-# ---------------------------------------------------------------------------
 
 _BOND_TYPE_STR = {
     'SINGLE': None,   # filled at first import

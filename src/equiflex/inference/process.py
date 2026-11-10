@@ -44,7 +44,6 @@ from equiflex.prep.featurize import (
 )
 from equiflex.prep.const import PROTEIN_BACKBONE_ATOM_NAMES
 
-# Get the directory where this script is located
 SCRIPT_DIR = Path(__file__).parent.resolve()
 
 
@@ -79,7 +78,6 @@ def extract_ligand_from_smiles(smiles: str, lig_idx: int = 0) -> Optional[Dict]:
         print(f"Failed to parse SMILES: {smiles}")
         return None
 
-    # Add hydrogens and generate 3D conformer
     mol = Chem.AddHs(mol)
     result = AllChem.EmbedMolecule(mol, AllChem.ETKDGv3())
     if result == -1:
@@ -89,7 +87,6 @@ def extract_ligand_from_smiles(smiles: str, lig_idx: int = 0) -> Optional[Dict]:
             print(f"Failed to generate 3D conformer for: {smiles}")
             return None
 
-    # Optimize geometry
     AllChem.MMFFOptimizeMolecule(mol)
 
     # Remove hydrogens for consistency with training data
@@ -103,10 +100,8 @@ def extract_ligand_from_smiles(smiles: str, lig_idx: int = 0) -> Optional[Dict]:
         atom_data = extract_atom_data(atom, name)
         atoms.append(atom_data)
 
-    # Extract bond data
     bonds = [extract_bond_data(bond) for bond in mol.GetBonds()]
 
-    # Extract coordinates
     coords = extract_coordinates(mol)
 
     return {
@@ -182,7 +177,6 @@ class InferenceProcessor:
         if isinstance(target_smiles, str):
             target_smiles = [target_smiles]
 
-        # Parse protein
         protein_data = parse_structure(protein_path)
         
         # Parse reference ligand to define pocket
@@ -190,7 +184,6 @@ class InferenceProcessor:
         if ref_ligand_data is None:
             raise ValueError(f"Failed to parse reference ligand: {ref_ligand_path}")
 
-        # Extract pocket residues using reference ligand location
         pocket_data, sequence_data = get_pocket_residues(protein_data, [ref_ligand_data])
         
         print(sequence_data)
@@ -198,7 +191,6 @@ class InferenceProcessor:
         # Overwrite pocket coords on reference templates
         pocket_residues = overwrite_coords_on_reference_data(pocket_data)
 
-        # Generate target ligand data from SMILES
         target_ligand_list = [
             extract_ligand_from_smiles(smi, idx)
             for idx, smi in enumerate(target_smiles)
@@ -208,14 +200,12 @@ class InferenceProcessor:
         if not target_ligand_list:
             raise ValueError("No valid target ligands found")
 
-        # Featurize
         ligand_features = self._process_ligands(target_ligand_list)
         pocket_features = self._process_pocket(pocket_residues)
 
         if pocket_features is None:
             raise ValueError("No pocket residues found")
 
-        # Extract embeddings
         esm_embeddings = self._extract_esm3(
             pocket_residues, sequence_data, pocket_features['residue_keys']
         )
@@ -244,7 +234,6 @@ class InferenceProcessor:
         all_bonds_data = []
 
         for lig_idx, lig_data in enumerate(ligands):
-            # Atom features
             atom_feats = []
             for atom in lig_data['atoms']:
                 feat_dict = featurize_atoms(atom)
@@ -260,7 +249,6 @@ class InferenceProcessor:
             n_atoms = len(lig_data['atoms'])
             all_ref_coords.append(coords.clone())
 
-            # UID vector
             ligand_uid_vec.extend([lig_idx] * n_atoms)
 
             # Bonds with global indices
@@ -273,13 +261,11 @@ class InferenceProcessor:
             n_atoms_per_ligand.append(n_atoms)
             atom_offset += n_atoms
 
-        # Stack features
         atom_features = torch.cat(all_atom_features, dim=0)
         coords = torch.cat(all_coords, dim=0)
         ref_coords = torch.cat(all_ref_coords, dim=0)
         ligand_uid_vec = torch.tensor(ligand_uid_vec, dtype=torch.long)
 
-        # Build bond matrix
         total_atoms = atom_features.shape[0]
         bond_dim = 26
         bond_features = torch.zeros(total_atoms, total_atoms, bond_dim)
@@ -311,7 +297,6 @@ class InferenceProcessor:
 
         for chain_id, residues in sorted(pocket_residues.items()):
             for (resname, resnum, entity_id), res_data in sorted(residues.items(), key=lambda x: x[0][1]):
-                # Atom features
                 atom_feats = []
                 for atom in res_data['atoms']:
                     feat_dict = featurize_atoms(atom)
@@ -319,11 +304,9 @@ class InferenceProcessor:
                 atom_feats = torch.stack(atom_feats, dim=0)
                 all_atom_features.append(atom_feats)
 
-                # Coordinates
                 coords = torch.tensor(res_data['coords'], dtype=torch.float32)
                 all_coords.append(coords)
 
-                # Reference coordinates
                 n_atoms = len(res_data['atoms'])
                 if 'ref_coords' in res_data and res_data['ref_coords'] is not None:
                     ref_coords = torch.tensor(res_data['ref_coords'], dtype=torch.float32)
@@ -331,14 +314,12 @@ class InferenceProcessor:
                     ref_coords = coords.clone()
                 all_ref_coords.append(ref_coords)
 
-                # Backbone mask
                 backbone_mask = torch.tensor(
                     [1.0 if atom['name'] in PROTEIN_BACKBONE_ATOM_NAMES else 0.0 for atom in res_data['atoms']],
                     dtype=torch.float32
                 )
                 all_backbone_masks.append(backbone_mask)
 
-                # UID vector
                 residue_uid_vec.extend([residue_idx] * n_atoms)
 
                 # Bonds with global indices
@@ -356,14 +337,12 @@ class InferenceProcessor:
         if not all_atom_features:
             return None
 
-        # Stack features
         atom_features = torch.cat(all_atom_features, dim=0)
         coords = torch.cat(all_coords, dim=0)
         ref_coords = torch.cat(all_ref_coords, dim=0)
         backbone_mask = torch.cat(all_backbone_masks, dim=0)
         residue_uid_vec = torch.tensor(residue_uid_vec, dtype=torch.long)
 
-        # Build bond matrix
         total_atoms = atom_features.shape[0]
         bond_dim = 26
         bond_features = torch.zeros(total_atoms, total_atoms, bond_dim)
@@ -436,7 +415,6 @@ class InferenceProcessor:
         N_lig = ligand_features['atom_features'].shape[0]
         N_rec_tokens = esm_embeddings.shape[0]
 
-        # Compute backbone COM for centering
         backbone_mask = pocket_features['backbone_mask']
         rec_coords = pocket_features['coords']
         missing_mask = pocket_features.get('missing_mask')
@@ -456,7 +434,6 @@ class InferenceProcessor:
         else:
             backbone_com = rec_coords.mean(dim=0)
 
-        # Center coordinates by backbone COM
         rec_coords_centered = rec_coords - backbone_com
         lig_coords_centered = ligand_features['coords'] - backbone_com
 
@@ -524,7 +501,6 @@ def process_single_complex(
     Returns:
         Path to output directory
     '''
-    # Handle output directory
     if output_dir is None:
         output_dir = get_default_output_dir(run_id)
     else:
@@ -548,7 +524,6 @@ def process_single_complex(
         tensors_to_save = {k: v for k, v in data.items() if not k.startswith('_')}
         torch.save(tensors_to_save, output_dir / 'inference_data.pt')
 
-        # Save metadata separately
         metadata = {k: v for k, v in data.items() if k.startswith('_')}
         if metadata:
             torch.save(metadata, output_dir / 'metadata.pt')

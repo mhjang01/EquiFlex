@@ -28,7 +28,6 @@ from equiflex.prep.geometry import place_cb_ideal
 from equiflex.prep.validation import validate_cached_unimol
 
 from muon import SingleDeviceMuonWithAuxAdam, MuonWithAuxAdam
-#from normuon import SingleDeviceNorMuonWithAuxAdam
 
 from conflictfree.grad_operator import ConFIG_update_double
 from conflictfree.utils import get_gradient_vector, apply_gradient_vector
@@ -136,7 +135,6 @@ class FlexTrainer(pl.LightningModule):
         # For overfitting tests: fix timestep to a constant value
         self.fixed_timestep = fixed_timestep
 
-        # Apply torch.compile for faster training/inference
         if config.training.use_compile:
             self.model = torch.compile(self.model, mode=config.training.compile_mode)
 
@@ -231,10 +229,8 @@ class FlexTrainer(pl.LightningModule):
         N_rec = batch['rec_atom_feats'].shape[1]
         device = batch['rec_atom_feats'].device
 
-        # Sample timesteps from mixture distribution
         t = self._sample_timesteps(B, device)
 
-        # Ground truth coordinates (x_1) — always [B, ...]
         rec_x_1 = batch['rec_atom_coords_gt']
         lig_x_1 = batch['lig_atom_coords_gt']
 
@@ -263,7 +259,6 @@ class FlexTrainer(pl.LightningModule):
             backbone_count = com_mask.sum(dim=1, keepdim=True).unsqueeze(-1).clamp(min=1.0)  # [B, 1, 1]
             global_backbone_com = backbone_coords_sum / backbone_count  # [B, 1, 3]
 
-            # Center all coordinates by global backbone COM
             rec_x_1 = rec_x_1 - global_backbone_com
             lig_x_1 = lig_x_1 - global_backbone_com
 
@@ -280,14 +275,12 @@ class FlexTrainer(pl.LightningModule):
                 ca_coords = rec_x_1[:, ca_idx]  # [B, n_residues, 3]
                 c_coords = rec_x_1[:, c_idx]    # [B, n_residues, 3]
 
-                # Ideal CB position per residue
                 cb_ideal = place_cb_ideal(n_coords, ca_coords, c_coords)  # [B, n_residues, 3]
 
                 # For GLY: fall back to CA position as noise center
                 gly_mask = is_gly.unsqueeze(0).unsqueeze(-1)  # [1, n_residues, 1]
                 cb_center = torch.where(gly_mask, ca_coords, cb_ideal)  # [B, n_residues, 3]
 
-                # Broadcast CB center to all atoms via residue_uid_vec
                 atom_noise_center = torch.gather(
                     cb_center, 1,
                     rec_uid_vec.unsqueeze(-1).expand(-1, -1, 3)
@@ -329,7 +322,6 @@ class FlexTrainer(pl.LightningModule):
         # Ligand noise: N(backbone_COM, lig_sigma^2) (origin after centering)
         lig_x_0 = torch.randn(lig_x_1.shape, device=device, dtype=lig_x_1.dtype) * lig_sigma
 
-        # Interpolate to get x_t
         t_expanded = t.view(B, 1, 1)
 
         rec_x_t = t_expanded * rec_x_1 + (1 - t_expanded) * rec_x_0
@@ -443,7 +435,6 @@ class FlexTrainer(pl.LightningModule):
                 lig_atom_mask=batch['lig_atom_mask'][0:1],
             )
 
-        # Forward pass (flow trunk only - used for flow loss)
         output = self.forward(input_batch, fm['t'], return_attn=return_attn,
                               q_chem=q_chem, p_chem=p_chem)
 
@@ -453,7 +444,6 @@ class FlexTrainer(pl.LightningModule):
         attn_stats = output.get('attn_stats', None)
         del output
 
-        # Combine coordinates and masks
         N_rec = batch['rec_atom_feats'].shape[1]
         N_lig = batch['lig_atom_feats'].shape[1]
         B = batch.get('batch_size', batch['rec_atom_coords_gt'].shape[0])
@@ -493,7 +483,6 @@ class FlexTrainer(pl.LightningModule):
             bond_mask_full[:, :N_rec, :N_rec] = rec_bond_mask
             bond_mask_full[:, N_rec:, N_rec:] = lig_bond_mask
 
-        # Combined constraint matrix (block diagonal).
         constraint_dim = batch['rec_constraint_matrix'].shape[-1]
         if batch.get('padded_batch', False):
             S = batch['rec_atom_feats'].shape[0]
@@ -527,7 +516,6 @@ class FlexTrainer(pl.LightningModule):
         else:
             cb_mask = None
 
-        # Compute losses:
         # - Flow loss: MSE(flow_pred, flow_gt) without unrolling
         # - Auxiliary losses: computed on unrolled x_1_pred (N steps from x_t)
         losses = self.loss_fn(
@@ -554,7 +542,6 @@ class FlexTrainer(pl.LightningModule):
             num_unrolls=num_unrolls,
         )
 
-        # Add batch size for logging
         losses['batch_size'] = B
 
         if return_attn and attn_stats is not None:
@@ -629,7 +616,6 @@ class FlexTrainer(pl.LightningModule):
             torch.cuda.empty_cache()
 
     def training_step(self, batch, batch_idx):
-        # Check if we should collect attention stats this step
         log_interval = self.config.logging.log_every_n_steps
         should_log_attn = self.config.model.return_attn_stats and (self.global_step % log_interval == 0)
 
@@ -675,7 +661,6 @@ class FlexTrainer(pl.LightningModule):
             # Skip the gradient update for this batch instead of crashing.
             return self._skip_oom_step(e)
 
-        # Check for NaN/Inf in loss
         if torch.isnan(losses['total']) or torch.isinf(losses['total']):
             print(f"WARNING: NaN/Inf loss detected at step {self.global_step}")
             for k, v in losses.items():
@@ -722,7 +707,6 @@ class FlexTrainer(pl.LightningModule):
                          prog_bar=prog, batch_size=B, logger=True, sync_dist=sync_dist)
             self.log('global_step', float(self.global_step), on_step=True, on_epoch=False, batch_size=B, logger=True, sync_dist=sync_dist)
 
-            # Log attention entropy stats if available
             attn_stats = losses.get('attn_stats')
             if attn_stats is not None:
                 if 'atom_entropy' in attn_stats:
@@ -909,11 +893,9 @@ class FlexTrainer(pl.LightningModule):
         device = batch['rec_atom_feats'].device
         B = batch.get('batch_size', batch['rec_atom_coords_gt'].shape[0])
 
-        # Ground truth coordinates (x_1)
         rec_x_1 = batch['rec_atom_coords_gt'].clone()
         lig_x_1 = batch['lig_atom_coords_gt'].clone()
 
-        # Backbone mask and residue indices
         rec_backbone_mask = batch.get('rec_backbone_mask')
         rec_cb_mask = batch.get('rec_cb_mask')
         rec_uid_vec = batch['rec_uid_vec']
@@ -933,7 +915,6 @@ class FlexTrainer(pl.LightningModule):
             backbone_count = com_mask.sum(dim=1, keepdim=True).unsqueeze(-1).clamp(min=1.0)  # [B, 1, 1]
             global_backbone_com = backbone_coords_sum / backbone_count  # [B, 1, 3]
 
-            # Center all coordinates by global backbone COM
             rec_x_1 = rec_x_1 - global_backbone_com
             lig_x_1 = lig_x_1 - global_backbone_com
 
@@ -998,11 +979,9 @@ class FlexTrainer(pl.LightningModule):
         # Ligand noise: N(backbone_COM, lig_sigma^2) (origin after centering)
         lig_x_0 = torch.randn(lig_x_1.shape, device=device, dtype=lig_x_1.dtype) * lig_sigma
 
-        # Current coordinates (start from x_0)
         rec_coords = rec_x_0.clone()
         lig_coords = lig_x_0.clone()
 
-        # Time schedule: 0 -> 1
         sampler = getattr(self.config.training, 'timestep_sampler', 'logit_normal')
         if sampler == 'uniform':
             timesteps = torch.linspace(0.0, 1.0, num_steps + 1).to(device)
@@ -1028,27 +1007,22 @@ class FlexTrainer(pl.LightningModule):
             unimol_embeddings=batch['unimol_embeddings'][0:1],
         )
 
-        # Euler integration
         for i in range(num_steps):
             t = timesteps[i]
             dt = timesteps[i + 1] - timesteps[i]
 
-            # Create batch with current coordinates
             input_batch = {
                 **batch,
                 'rec_atom_coords': rec_coords,
                 'lig_atom_coords': lig_coords,
             }
 
-            # Get flow prediction (flow trunk only)
             t_batch = t.expand(B)
             output = self.forward(input_batch, t_batch, q_chem=q_chem, p_chem=p_chem)
 
-            # Extract flow predictions
             rec_flow = output['rec_flow']
             lig_flow = output['lig_flow']
 
-            # Euler step
             rec_coords = rec_coords + dt * rec_flow
             lig_coords = lig_coords + dt * lig_flow
 
@@ -1085,7 +1059,6 @@ class FlexTrainer(pl.LightningModule):
         sq_dist = (diff ** 2).sum(dim=-1)  # [B, N]
 
         if mask is not None:
-            # Masked mean
             mask = mask.float()
             msd = (sq_dist * mask).sum(dim=-1) / mask.sum(dim=-1).clamp(min=1)
         else:
@@ -1200,7 +1173,6 @@ class FlexTrainer(pl.LightningModule):
         optimizer_type = getattr(opt_cfg, 'optimizer_type', 'muon').lower()
 
         if optimizer_type == 'adamw':
-            # Pure AdamW for all parameters
             optimizer = torch.optim.AdamW(
                 self.model.parameters(),
                 lr=opt_cfg.adam_lr,
@@ -1234,7 +1206,6 @@ class FlexTrainer(pl.LightningModule):
                 ))
 
             if optimizer_type == 'normuon':
-                #optimizer = SingleDeviceNorMuonWithAuxAdam(param_groups)
                 raise NotImplementedError("NorMuon not implemented")
             else:
                 # Default to Muon: distributed variant for multi-GPU, single-device otherwise
@@ -1250,7 +1221,6 @@ class FlexTrainer(pl.LightningModule):
             print(f"  Total params: {sum(p.numel() for p in muon_params) + sum(p.numel() for p in adam_params)}")
             print(f"  Model params: {sum(p.numel() for p in self.model.parameters())}")
 
-        # Linear warmup + linear decay scheduler
         warmup_steps = sched_cfg.warmup_steps
         total_steps = train_cfg.max_steps
         decay_steps = max(1, total_steps - warmup_steps)
@@ -1356,7 +1326,6 @@ class RMSDEvaluationCallback(Callback):
         unimol_emb = torch.load(system_path / 'unimol_embeddings.pt', weights_only=False)
         validate_cached_unimol(system_path, ligand_feats, unimol_emb)
 
-        # Backbone mask
         rec_backbone_mask = pocket_feats.get('backbone_mask', None)
         if rec_backbone_mask is None:
             n_atoms = pocket_feats['atom_features'].shape[0]
@@ -1370,7 +1339,6 @@ class RMSDEvaluationCallback(Callback):
         elif isinstance(rec_cb_mask, np.ndarray):
             rec_cb_mask = torch.from_numpy(rec_cb_mask).float()
 
-        # Missing mask
         rec_missing_mask = pocket_feats.get('missing_mask', None)
         if rec_missing_mask is not None:
             if isinstance(rec_missing_mask, np.ndarray):
@@ -1379,11 +1347,9 @@ class RMSDEvaluationCallback(Callback):
             n_atoms = pocket_feats['atom_features'].shape[0]
             rec_missing_mask = torch.zeros(n_atoms, dtype=torch.bool)
 
-        # Coordinates
         rec_coords_gt = pocket_feats['coords']
         lig_coords_gt = ligand_feats['coords']
 
-        # Center by backbone COM
         valid_backbone_mask = rec_backbone_mask * (~rec_missing_mask).float()
         if valid_backbone_mask.sum() > 0:
             backbone_com = (rec_coords_gt * valid_backbone_mask.unsqueeze(-1)).sum(dim=0) / valid_backbone_mask.sum()
@@ -1397,7 +1363,6 @@ class RMSDEvaluationCallback(Callback):
         N_lig = ligand_feats['atom_features'].shape[0]
         N_rec_tokens = esm_emb.shape[0]
 
-        # Build batch with B=1
         batch = {
             'rec_atom_feats': pocket_feats['atom_features'].unsqueeze(0),
             'rec_atom_coords_gt': rec_coords_gt_centered.unsqueeze(0),
@@ -1489,10 +1454,8 @@ class RMSDEvaluationCallback(Callback):
             try:
                 batch = self._create_single_sample_batch(str(system_path), device)
 
-                # Run Euler integration
                 result = pl_module._euler_integrate(batch, num_steps=self.num_steps)
 
-                # Compute RMSDs
                 rec_mask = batch['rec_atom_mask']
                 lig_mask = batch['lig_atom_mask']
 
@@ -1506,11 +1469,9 @@ class RMSDEvaluationCallback(Callback):
                         )
                         sidechain_rmsds.append(sc_rmsd.item())
 
-                # Full receptor RMSD
                 rec_rmsd = pl_module._compute_rmsd(result['rec_pred'], result['rec_gt'], rec_mask.float())
                 rec_rmsds.append(rec_rmsd.item())
 
-                # Ligand RMSD
                 lig_rmsd = pl_module._compute_rmsd(result['lig_pred'], result['lig_gt'], lig_mask.float())
                 lig_rmsds.append(lig_rmsd.item())
 
@@ -1520,7 +1481,6 @@ class RMSDEvaluationCallback(Callback):
                     'RMSD evaluation failed: split=%s system=%s: %s',
                     split_name, system_id, exc, exc_info=True)
 
-            # Clean up VRAM
             try:
                 del batch
             except NameError:
@@ -1609,7 +1569,6 @@ class RMSDEvaluationCallback(Callback):
 
         self.val_count += 1
 
-        # Only evaluate every N validations
         if self.val_count % self.eval_every_n_val != 0:
             return
 
@@ -1630,26 +1589,22 @@ class RMSDEvaluationCallback(Callback):
             all_metrics.update(self._evaluate_test_losses(
                 pl_module, getattr(pl_module, 'pb_dataloader_ref', None), 'pb'))
 
-            # Evaluate train split RMSD
             train_metrics = self._evaluate_split(
                 pl_module, self.train_systems, self.data_dir, 'train_rmsd'
             )
             all_metrics.update(train_metrics)
 
-            # Evaluate val split RMSD
             val_metrics = self._evaluate_split(
                 pl_module, self.val_systems, self.data_dir, 'val_rmsd'
             )
             all_metrics.update(val_metrics)
 
-            # Evaluate test split RMSD (can use separate test_data_dir)
             if self.test_systems:
                 test_metrics = self._evaluate_split(
                     pl_module, self.test_systems, self.test_data_dir, 'test_rmsd'
                 )
                 all_metrics.update(test_metrics)
 
-            # Evaluate PoseBusters benchmark RMSD (separate dir)
             if self.pb_systems and self.pb_data_dir is not None:
                 pb_metrics = self._evaluate_split(
                     pl_module, self.pb_systems, self.pb_data_dir, 'pb_rmsd'
@@ -1661,7 +1616,6 @@ class RMSDEvaluationCallback(Callback):
                 trainer.logger.log_metrics(all_metrics, step=trainer.global_step)
 
         finally:
-            # Restore original weights after evaluation
             if ema_callback is not None and ema_callback.ema is not None:
                 ema_callback.ema.restore(pl_module.model)
 
@@ -1673,11 +1627,9 @@ class WandBWatchCallback(Callback):
         super().__init__()
         self.log_freq = log_freq
         
-        # 1. Normalize input
         if log is not None:
             log = str(log).strip().lower()
             
-        # 2. Strict validation
         if log not in {'gradients', 'parameters', 'all'}:
             log = None
             
@@ -1685,7 +1637,6 @@ class WandBWatchCallback(Callback):
         self.watch_mode = log
 
     def on_fit_start(self, trainer, pl_module):
-        # 3. Use the renamed variable
         if self.watch_mode is None:
             return
 
@@ -1722,7 +1673,6 @@ def get_trainer(config: FullConfig) -> pl.Trainer:
 
     callbacks = []
 
-    # Checkpoint callback
     checkpoint_callback = ModelCheckpoint(
         dirpath=f'{log_cfg.checkpoint_dir}/{log_cfg.wandb_run_name or "flex"}',
         filename='{step}-{val/total_loss:.4f}',
@@ -1734,20 +1684,16 @@ def get_trainer(config: FullConfig) -> pl.Trainer:
     )
     callbacks.append(checkpoint_callback)
 
-    # LR monitor
     lr_monitor = LearningRateMonitor(logging_interval='step')
     callbacks.append(lr_monitor)
     
-    # Model summary with full depth
     model_summary = ModelSummary(max_depth=2)
     callbacks.append(model_summary)
 
-    # EMA callback
     if ema_cfg.enabled:
         ema_callback = EMACallback(decay=ema_cfg.decay)
         callbacks.append(ema_callback)
 
-    # Logger
     logger = None
     if log_cfg.use_wandb:
         logger = WandbLogger(
@@ -1759,7 +1705,6 @@ def get_trainer(config: FullConfig) -> pl.Trainer:
             log_model=False,
         )
 
-        # Add wandb.watch callback for gradient/parameter logging
         if getattr(log_cfg, 'watch_model', False) and getattr(log_cfg, 'watch_log', None):
             watch_callback = WandBWatchCallback(
                 log=log_cfg.watch_log,

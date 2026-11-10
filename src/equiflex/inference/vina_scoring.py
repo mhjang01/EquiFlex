@@ -7,7 +7,7 @@ generated protein-ligand poses.
 The torch port and the real AutoDock Vina binary do not agree pose-for-pose:
 hydrogen placement (RDKit vs Open Babel) and nitrogen acceptor typing differ.
 Benchmark pose selection therefore uses the binary via :func:`vina_binary_score`
-(``vina --score_only`` on Open Babel pdbqt files, see ``scripts/vina_rescore.py``);
+(``vina --score_only`` on Open Babel pdbqt files);
 the torch port serves guidance-free relative ranking and the ``summary.md``
 written by ``run_inference.py``.
 
@@ -45,9 +45,7 @@ import torch
 from rdkit import Chem
 from rdkit.Chem import rdMolDescriptors
 
-# --------------------------------------------------------------------------- #
 # Atom-type table (xs_radius, hydrophobe, donor, acceptor) — gnina default_data
-# --------------------------------------------------------------------------- #
 # Index 0 is reserved for "no heavy type" / hydrogen (excluded from scoring).
 
 _TYPE_TABLE: List[Tuple[str, float, bool, bool, bool]] = [
@@ -118,9 +116,7 @@ class AtomTyping:
     names: List[str] = field(default_factory=list)  # debug: per-atom type name
 
 
-# --------------------------------------------------------------------------- #
 # Atom typing
-# --------------------------------------------------------------------------- #
 def _nitrogen_is_acceptor(atom: Chem.Atom) -> bool:
     """Approximate OpenBabel ``IsHbondAcceptor`` for nitrogen.
 
@@ -226,9 +222,7 @@ def assign_xs_types(
     )
 
 
-# --------------------------------------------------------------------------- #
 # Energy terms
-# --------------------------------------------------------------------------- #
 def _gaussian(x: torch.Tensor, width: float) -> torch.Tensor:
     return torch.exp(-((x / width) ** 2))
 
@@ -338,9 +332,7 @@ def vina_score(
     return out
 
 
-# --------------------------------------------------------------------------- #
 # Loaders / high-level entry points
-# --------------------------------------------------------------------------- #
 def count_rotatable_bonds(mol: Chem.Mol) -> int:
     """Strict rotatable-bond count, approximating Vina's active torsions.
 
@@ -449,9 +441,7 @@ def score_mols(
     return vina_score(rec, lig, num_rot=num_rot, scoring=scoring)
 
 
-# --------------------------------------------------------------------------- #
 # Real AutoDock Vina binary (``--score_only``)
-# --------------------------------------------------------------------------- #
 _VINA_AFFINITY = re.compile(r"Affinity:\s*(-?\d+\.?\d*)")
 
 

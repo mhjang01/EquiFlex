@@ -72,7 +72,6 @@ def add_name_encoding_to_features(
     if len(atom_names) != n_atoms:
         raise ValueError(f"Atom count mismatch: {len(atom_names)} names vs {n_atoms} features")
 
-    # Generate name encodings
     name_encodings = torch.stack([
         encode_atom_name_chars(name) for name in atom_names
     ])  # [n_atoms, 256]
@@ -99,7 +98,6 @@ def patch_ligand_features(system_dir: Path, dry_run: bool = False) -> tuple:
     if data['atom_features'].shape[1] != 124:
         return False, f"unexpected dim: {data['atom_features'].shape[1]}"
 
-    # Get SMILES and generate atom names
     smiles_list = data['smiles_list']
     n_atoms_per_ligand = data['n_atoms_per_ligand']
 
@@ -112,13 +110,11 @@ def patch_ligand_features(system_dir: Path, dry_run: bool = False) -> tuple:
             return False, f"atom count mismatch for {smiles}: {len(names)} vs {n_atoms}"
         all_atom_names.extend(names)
 
-    # Add name encoding
     new_features = add_name_encoding_to_features(data['atom_features'], all_atom_names)
 
     if dry_run:
         return True, f"would patch: {data['atom_features'].shape[1]} -> {new_features.shape[1]}"
 
-    # Update and save
     data['atom_features'] = new_features
     torch.save(data, features_path)
 
@@ -141,7 +137,6 @@ def patch_pocket_features(system_dir: Path, dry_run: bool = False) -> tuple:
     if data['atom_features'].shape[1] != 124:
         return False, f"unexpected dim: {data['atom_features'].shape[1]}"
 
-    # Get atom names from residue info
     residue_keys = data['residue_keys']
     n_atoms_per_residue = data['n_atoms_per_residue']
 
@@ -150,13 +145,11 @@ def patch_pocket_features(system_dir: Path, dry_run: bool = False) -> tuple:
     if len(atom_names) != data['atom_features'].shape[0]:
         return False, f"atom count mismatch: {len(atom_names)} vs {data['atom_features'].shape[0]}"
 
-    # Add name encoding
     new_features = add_name_encoding_to_features(data['atom_features'], atom_names)
 
     if dry_run:
         return True, f"would patch: {data['atom_features'].shape[1]} -> {new_features.shape[1]}"
 
-    # Update and save
     data['atom_features'] = new_features
     torch.save(data, features_path)
 
@@ -175,7 +168,6 @@ def patch_data_directory(data_dir: Path, dry_run: bool = False):
     pocket_results = {'success': 0, 'skipped': 0, 'failed': 0}
 
     for system_dir in tqdm(system_dirs, desc="Patching"):
-        # Patch ligand features
         success, msg = patch_ligand_features(system_dir, dry_run)
         if success:
             if 'skipped' in msg:
@@ -186,7 +178,6 @@ def patch_data_directory(data_dir: Path, dry_run: bool = False):
             ligand_results['failed'] += 1
             print(f"  Ligand {system_dir.name}: {msg}")
 
-        # Patch pocket features
         success, msg = patch_pocket_features(system_dir, dry_run)
         if success:
             if 'skipped' in msg:

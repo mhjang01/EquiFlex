@@ -108,7 +108,7 @@ class FlexDataset(Dataset):
             lig_torsion_indices = torch.empty((0, 4), dtype=torch.long)
 
         # Ligand stereocentres [K, 5] (a0, a1, a2, centre, is_r); absent in
-        # featurisations older than ChiralAtomLoss (scripts/backfill_chiral_indices.py).
+        # featurisations predating ChiralAtomLoss.
         lig_chiral_indices = ligand_feats.get('chiral_atom_indices', None)
         if lig_chiral_indices is not None:
             lig_chiral_indices = torch.as_tensor(lig_chiral_indices, dtype=torch.long).reshape(-1, 5)
@@ -273,7 +273,6 @@ def collate_single_system(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, tor
     N_rec = item['rec_atom_feats'].shape[0]
     N_lig = item['lig_atom_feats'].shape[0]
 
-    # Compute backbone COM for centering
     backbone_mask = item['rec_backbone_mask']  # [N_rec]
     rec_coords_gt = item['rec_atom_coords_gt']  # [N_rec, 3]
     missing_mask = item['rec_missing_mask']  # [N_rec], True = missing
@@ -284,7 +283,6 @@ def collate_single_system(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, tor
     else:
         backbone_com = rec_coords_gt.mean(dim=0)
 
-    # Center GT coordinates by backbone COM
     rec_coords_gt_centered = rec_coords_gt - backbone_com
     lig_coords_gt_centered = item['lig_atom_coords_gt'] - backbone_com
 
@@ -616,7 +614,7 @@ def get_dataloader(
 
 
 def load_split_from_csv(
-    csv_path: str = 'scripts/lp_pdbbind/LP_PDBBind.csv',
+    csv_path: str = 'data_v2_plinder/splits_v9.csv',
 ) -> Tuple[List[str], List[str], List[str]]:
     """
     Load train/val/test splits from LP_PDBBind CSV file.
@@ -743,7 +741,6 @@ def split_systems_random(
     """
     data_path = Path(data_dir)
 
-    # Get all valid system directories
     all_systems = sorted([
         d.name for d in data_path.iterdir()
         if d.is_dir() and d.name != 'errors' and (d / 'ligand_features.pt').exists()
@@ -754,12 +751,10 @@ def split_systems_random(
     shuffled = all_systems.copy()
     rng.shuffle(shuffled)
 
-    # Split
     n_val = max(1, int(len(shuffled) * val_ratio))
     val_systems = shuffled[:n_val]
     train_systems = shuffled[n_val:]
 
-    # Log the split
     if log_dir is not None:
         log_path = Path(log_dir)
         log_path.mkdir(parents=True, exist_ok=True)
@@ -795,7 +790,7 @@ def get_train_val_dataloaders(
     seed: int = 42,
     log_dir: Optional[str] = None,
     val_batches: int = 100,
-    split_csv: str = 'scripts/lp_pdbbind/LP_PDBBind.csv',
+    split_csv: str = 'data_v2_plinder/splits_v9.csv',
     split_dir: Optional[str] = None,
     preload: bool = False,
     systems_per_batch: int = 1,
@@ -845,7 +840,6 @@ def get_train_val_dataloaders(
 
     print(f"Train systems: {len(train_systems)}, Val systems: {len(val_systems)}")
 
-    # Validate that system directories exist
     data_path = Path(data_dir)
     train_systems = [s for s in train_systems if (data_path / s / 'ligand_features.pt').exists()]
     val_systems = [s for s in val_systems if (data_path / s / 'ligand_features.pt').exists()]
@@ -912,7 +906,6 @@ def get_test_dataloader(
         if d.is_dir() and d.name != 'errors' and (d / 'ligand_features.pt').exists()
     ]
 
-    # Validate that system directories exist
     test_systems = [s for s in test_systems if (data_path / s / 'ligand_features.pt').exists()]
 
     if len(test_systems) == 0:

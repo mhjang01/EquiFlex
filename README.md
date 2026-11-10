@@ -38,20 +38,18 @@ src/equiflex/
   model/        SE(3)-equivariant flow-matching model, Lightning trainer, loss
   prep/         structure parsing, pocket selection, featurization (ESM3, UniMol)
   inference/    flow-matching sampler, physics guidance, GenScore + Vina scoring
-  dataprep/     dataset parse + featurize entrypoints, PLINDER split CSV
+  dataprep/     dataset parse + featurize entrypoints
 scripts/
-  run_inference.py                    single-system CLI or batch YAML inference
-  select_pocket.py                    pocket residues at the training cutoff
-  vina_rescore.py                     real AutoDock Vina --score_only rescoring
-  score_pb_predicted_receptor.py      rescore poses in their own predicted receptor
-  eval_posebusters_redock.py          PoseBusters redock metrics + score-based selectors
-  make_posebusters_inference_config.py  benchmark YAML from the manifest
-  prepare_posebusters.py              featurize the benchmark ahead of time
-  train.py, extract_weights.py, backfill_chiral_indices.py
-configs/v10_512.yaml      training config of the released checkpoint
-weights/weights.ckpt      released checkpoint (Git LFS)
-data/5SAK_ZRY/            bundled example system (inputs + precomputed features)
+  run_inference.py   single-system CLI or batch YAML inference
+  run_hts.py         screen a SMILES library against one pocket
+  select_pocket.py   pocket residues at the training cutoff
+  train.py           training entrypoint
+  patch_unimol.sh    Uni-Mol v2 padding-invariance patch
+configs/equiflex_config.yaml      training config of the released checkpoint
+weights/weights.ckpt              released checkpoint (Git LFS)
+data/5SAK_ZRY/                    bundled example system (inputs + precomputed features)
 data/posebusters/benchmark.yaml   308-system PoseBusters manifest (pockets, SMILES, ions)
+data_v2_plinder/splits_v9.csv     PLINDER train/val split of the released model
 ```
 
 ## Pocket definition
@@ -176,52 +174,46 @@ uv run python scripts/run_inference.py \
     --output-dir ./output
 ```
 
-## Pose ranking with AutoDock Vina
+## Pose scoring
 
-`summary.md` uses a torch port of the Vina function that is convenient but does
-not match the binary pose-for-pose (hydrogen placement and nitrogen typing
-differ). Reported benchmark numbers rank samples with the **real** binary in
-`--score_only` mode, receptor rebuilt from each pose's own `complex.cif` so the
-sampled side chains are scored:
+Every scorer sees the receptor the model produced, rebuilt from each pose's own
+`complex.cif`, so the sampled side chains are what gets scored. Scoring a
+predicted ligand against the input or crystal pocket instead inflates learned
+scores substantially.
+
+GenScore is the default selector (see Installation for `$GENSCORE_ROOT`).
+`summary.md` also reports a torch port of the Vina function, which is convenient
+but does not match the binary pose-for-pose (hydrogen placement and nitrogen
+typing differ); `equiflex.inference.vina_binary_score_pose` calls the real
+binary in `--score_only` mode on the same rebuilt receptor.
+
+## High-throughput screening
+
+`run_hts.py` screens a SMILES library against a single pocket. The receptor is
+parsed and featurized once, ligands are conformer-generated and UniMol-embedded
+in batches, and each ligand is sampled against the same pocket while finished
+poses are scored in a background pool. Every stage resumes from disk.
 
 ```bash
-uv run python scripts/vina_rescore.py --run phys=data/posebusters/prepared \
-                                      --out data/posebusters/vina_real.csv
+uv run python scripts/run_hts.py --config hts.yaml [--limit N] [--force-prepare]
 ```
 
-The CSV holds one row per pose (`run, system, sample, vina_real, error`) and is
-resumable. `equiflex.inference.vina_binary_score_pose` exposes the same call.
+The module docstring documents every YAML key. Outputs are `scores.csv` (one row
+per pose), `ranking.csv` (one row per ligand, best score first) and `errors.tsv`;
+re-running with the same `output_root` skips prepared shards and scored ligands.
 
 ## PoseBusters benchmark
 
 `data/posebusters/benchmark.yaml` lists the 308 systems with 5 Å pockets,
 ligand SMILES, free metal ions within the cutoff, and reference SDF names, all
 relative to a raw benchmark root laid out as `<id>/<id>_protein.pdb` and
-`<id>/<id>_ligand.sdf`.
-
-```bash
-RAW=/path/to/posebusters_benchmark_set
-uv run python scripts/make_posebusters_inference_config.py --raw-root $RAW \
-    --out data/posebusters/inference.yaml            # add --force-prepare after changing pockets
-uv run python scripts/run_inference.py --config data/posebusters/inference.yaml
-uv run python scripts/vina_rescore.py --run phys=data/posebusters/prepared \
-    --out data/posebusters/vina_real.csv
-uv run python scripts/eval_posebusters_redock.py --gt-dir $RAW \
-    --run phys=data/posebusters/prepared \
-    --vina-csv data/posebusters/vina_real.csv --out data/posebusters/pb_metrics.csv
-```
-
-The evaluator busts each pose against every deposited ligand copy with the
-pose's own protein as `mol_cond`, adds pocket side-chain RMSD from `results.pt`,
-and reports the `top-1`, `best-of-N` and `min Vina` selectors; every metric of a
-selector is read off the same pose. `scripts/prepare_posebusters.py` featurizes
-the manifest ahead of time (useful on a machine with the GPU but no Vina).
+`<id>/<id>_ligand.sdf`. It converts directly into a `run_inference.py` batch
+config; the evaluation harness behind the reported numbers is not part of this
+tree.
 
 `run_inference.py` reuses `system_data/` if its files and feature keys are
 present. It does not check which pocket cutoff produced them, so after changing
 a pocket definition re-run with `force_prepare: true` (or `--force-prepare`).
-`scripts/backfill_chiral_indices.py` upgrades feature directories written before
-the chiral guidance term existed without re-featurizing.
 
 ## Data preparation
 
@@ -267,28 +259,17 @@ entities or atom order change (including adding/removing ions), rerun preparatio
 do not fix the mismatch by blindly truncating or padding embeddings. Evaluation
 failures log the split, system context and exception traceback.
 
-The PLINDER split used for training is `src/equiflex/dataprep/lp_plinder/plinder_splits.csv`
-(`system_id,new_split,source_path`; the path column is relative to the raw PLINDER root).
+The PLINDER split used for the released model is `data_v2_plinder/splits_v9.csv`.
 
 ## Training
 
 ```bash
-uv run python scripts/train.py --config configs/v10_512.yaml --data-dir /path/to/data
+uv run python scripts/train.py --config configs/equiflex_config.yaml --data-dir /path/to/data
 ```
 
-`configs/v10_512.yaml` is the configuration the released checkpoint was trained
+`configs/equiflex_config.yaml` is the configuration the released checkpoint was trained
 with. `--data-dir` overrides `data.data_dir`; `data.split_csv` points at the
 shipped PLINDER split CSV and `data.test_data_dir` at the held-out systems used
 by the RMSD callback, so edit those two in the YAML for your own layout.
-`--resume <train.ckpt>` continues from a full training checkpoint (the slim
-released weights carry no optimizer state); `scripts/submit_4farm.sh` and
-`submit_large_8farm.sh` are SLURM templates for multi-GPU runs.
-
-## Extracting weights from a training checkpoint
-
-`scripts/extract_weights.py` produces a slim, inference-only checkpoint: it bakes
-the EMA weights into the state dict and drops optimizer/scheduler/loop state.
-
-```bash
-uv run python scripts/extract_weights.py train.ckpt weights/weights.ckpt
-```
+`--resume <train.ckpt>` continues from a full training checkpoint; the slim
+released weights carry no optimizer state.

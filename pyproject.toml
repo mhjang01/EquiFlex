@@ -84,15 +84,3 @@ normuon = { git = "https://github.com/zichongli5/NorMuon" }
 dev = [
     "imageio>=2.37.3",
 ]
-
-[tool.pytest.ini_options]
-# artifacts/ is a frozen pre-v10 snapshot: its tests import modules this tree no
-# longer has. tpd/full_db/previous_scripts duplicates a test basename in
-# scripts/, which breaks collection with rootdir-relative imports.
-norecursedirs = [
-    "artifacts",
-    "tpd/full_db/previous_scripts",
-    ".venv",
-    "build",
-    "dist",
-]

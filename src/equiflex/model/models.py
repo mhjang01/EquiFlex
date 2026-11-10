@@ -106,7 +106,6 @@ class FlexConfig:
             f"chem_opm_dim must be positive, got {self.chem_opm_dim}"
         assert self.tp_method in ('fused', 'naive'), f"tp_method must be fused|naive, got {self.tp_method!r}"
 
-        # Default time_embed_dim to ns if not explicitly set
         if self.time_embed_dim != self.ns:
             self.time_embed_dim = self.ns
 
@@ -170,7 +169,6 @@ class FlexModel(nn.Module):
         pair_mask = atom_mask.unsqueeze(1) & atom_mask.unsqueeze(2)
         pair_mask_f = pair_mask.to(dtype).unsqueeze(-1)
 
-        # Concatenate rec+lig
         atom_feats = torch.cat([rec_atom_feats, lig_atom_feats], dim=1)
         atom_ref_coords = torch.cat([rec_atom_ref_coords, lig_atom_ref_coords], dim=1)
 
@@ -210,7 +208,6 @@ class FlexModel(nn.Module):
             del esm_emb, unimol_emb
         q = q * atom_mask_f
 
-        # Pairwise features
         ref_disto = torch.cdist(atom_ref_coords, atom_ref_coords).unsqueeze(-1)
         p = self.pair_embedder(
             distogram=ref_disto,

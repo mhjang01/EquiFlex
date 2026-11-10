@@ -245,9 +245,6 @@ class GenScoreScorer:
         only reads coordinates, residue names and connectivity, so skipping the
         valence/property check changes nothing it uses. The strict path is tried
         first so scores match it wherever it succeeds.
-
-        This mirrors ``load_pocket`` in scripts/score_pb_predicted_receptor.py;
-        the two must stay in step or their numbers stop being comparable.
         """
         from rdkit import Chem
 

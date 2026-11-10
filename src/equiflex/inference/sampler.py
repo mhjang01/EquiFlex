@@ -452,7 +452,7 @@ class FlowMatchingSampler:
                     lig_chiral_indices=data.get("lig_chiral_indices"),
                 )
 
-        # Pre-compute chemistry features once (V4 two-trunk architecture)
+        # Pre-compute chemistry features once (two-trunk architecture)
         with record_function("flex::forward_chemistry"):
             q_chem, p_chem = self.model.forward_chemistry(
                 rec_atom_feats=batch["rec_atom_feats"],

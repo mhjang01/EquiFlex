@@ -360,9 +360,7 @@ def _write_sample_score_summary(
     return summary_path
 
 
-# ---------------------------------------------------------------------------
 # Data preparation helpers
-# ---------------------------------------------------------------------------
 
 def select_pocket_by_residues(
     protein_data: Dict,
@@ -595,9 +593,7 @@ def assemble_system_data(
     }
 
 
-# ---------------------------------------------------------------------------
 # Featurization pipeline
-# ---------------------------------------------------------------------------
 
 def prepare_system(
     receptor_path: Path,
@@ -699,9 +695,7 @@ def prepare_system(
         del unimol_extractor
 
 
-# ---------------------------------------------------------------------------
 # Single-system sampling + output writing
-# ---------------------------------------------------------------------------
 
 def run_single_system(
     system_dir: Path,
@@ -828,9 +822,7 @@ def run_single_system(
     }
 
 
-# ---------------------------------------------------------------------------
 # YAML config parsing
-# ---------------------------------------------------------------------------
 
 def _parse_residues_spec(raw_residues) -> Dict[str, Set[int]]:
     """Convert YAML ``residues`` into ``{chain_id: {resnum, ...}}``.
@@ -936,9 +928,7 @@ def parse_yaml_config(config_path: Path) -> Dict:
     return {'globals': raw, 'output_root': output_root, 'systems': systems}
 
 
-# ---------------------------------------------------------------------------
 # Featurisation currency
-# ---------------------------------------------------------------------------
 
 _REQUIRED_SYSTEM_FILES = (
     'ligand_features.pt', 'pocket_features.pt',
@@ -977,9 +967,7 @@ def system_data_is_current(sys_dir: Path) -> Optional[str]:
     return None
 
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(
@@ -1122,7 +1110,6 @@ def main():
         if not args.checkpoint:
             parser.error("--checkpoint is required")
 
-        # Parse chain:resnum pairs from CLI
         chain_residues: Dict[str, Set[int]] = {}
         for token in args.residues:
             if ':' not in token:

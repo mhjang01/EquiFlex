@@ -55,18 +55,24 @@ YAML:
       shard_size: 256               # ligands per shard file
 
     scoring:
+      select_by: genscore           # genscore | vinardo | vina  (drives the kept pose and ranking)
       backend: torch                # torch (vina_scoring port) | binary (vina) | smina (any smina function)
-      smina_scoring: vinardo        # smina backend only; also selects the kept pose
+      smina_scoring: vinardo        # smina backend only
       workers: 8
       vina: vina                    # binary backend only
       obabel: obabel                # torsion count (torch) / pdbqt conversion (binary)
+      genscore:
+        enabled: true               # needs $GENSCORE_ROOT; false falls back to Vinardo
+        model: GT_0.0_1
+        cutoff: 10.0                # pocket cut radius per pose, A
+        batch_size: 32
 
 Outputs under ``output_root``:
     receptor/pocket.yaml, pocket_features.pt, esm3_embeddings.pt, reference_ligand.pdb
     ligands/manifest.csv, library.yaml, shard_XXXX.pt
     poses/<lig_id>/sample_<i>/{complex.cif, ligand.sdf}
-    scores.csv      one row per pose: vina, physics_loss
-    ranking.csv     one row per ligand, best Vina first
+    scores.csv      one row per pose: vina, vinardo, genscore, physics_loss
+    ranking.csv     one row per ligand, best select_by score first
     errors.tsv      ligands that failed sampling or scoring
 
 Re-running with the same output_root skips prepared shards and scored ligands.
@@ -121,9 +127,7 @@ _SCORE_COLUMNS = ('lig_id', 'sample', 'vina', 'vinardo', 'genscore', 'physics_lo
 _HIGHER_IS_BETTER = frozenset({'genscore'})
 
 
-# ---------------------------------------------------------------------------
 # Config
-# ---------------------------------------------------------------------------
 
 def load_config(path: Path, limit_override: Optional[int], force_prepare: bool) -> Dict:
     """Read the HTS YAML and fill defaults; raises on missing required keys."""
@@ -210,9 +214,7 @@ def load_config(path: Path, limit_override: Optional[int], force_prepare: bool) 
     }
 
 
-# ---------------------------------------------------------------------------
 # Receptor: reference ligand -> pocket -> features (once)
-# ---------------------------------------------------------------------------
 
 def _is_hetero(residue: gemmi.Residue) -> bool:
     info = gemmi.find_tabulated_residue(residue.name)
@@ -381,9 +383,7 @@ def prepare_receptor(receptor_cfg: Dict, out_dir: Path, device: str, force: bool
     return {'features': pocket_features, 'esm': esm_emb, 'ions': ions, 'residues': residues}
 
 
-# ---------------------------------------------------------------------------
 # Ligand library -> feature shards
-# ---------------------------------------------------------------------------
 
 def read_library(path: Path, smiles_column: str, name_column: Optional[str],
                  limit: Optional[int]) -> List[Tuple[str, str]]:
@@ -574,9 +574,7 @@ def prepare_ligands(lig_cfg: Dict, entries: List[Tuple[str, str]], out_dir: Path
     return pd.DataFrame(rows).sort_values('idx'), stale
 
 
-# ---------------------------------------------------------------------------
 # Model
-# ---------------------------------------------------------------------------
 
 def load_sampler(checkpoint: str, device: str, guidance_cfg, guidance_explicit) -> FlowMatchingSampler:
     ckpt = torch.load(checkpoint, map_location='cpu', weights_only=False)
@@ -596,9 +594,7 @@ def load_sampler(checkpoint: str, device: str, guidance_cfg, guidance_explicit) 
     return sampler
 
 
-# ---------------------------------------------------------------------------
 # Scoring workers
-# ---------------------------------------------------------------------------
 
 def _score_worker(job) -> Dict:
     """Score one pose from its receptor PDB and ligand SDF.
@@ -661,9 +657,7 @@ def _score_worker(job) -> Dict:
                 'score_s': time.perf_counter() - t0}
 
 
-# ---------------------------------------------------------------------------
 # Screening loop
-# ---------------------------------------------------------------------------
 
 def write_ranking(out_root: Path, manifest: pd.DataFrame, score_rows: List[Dict],
                   ligand_meta: Dict[str, Dict], select_by: str = 'vina') -> Optional[pd.DataFrame]:
@@ -954,9 +948,7 @@ def run_screen(cfg: Dict, pocket: Dict, manifest: pd.DataFrame, stale: Set[str],
     return stage
 
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
