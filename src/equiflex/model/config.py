@@ -115,7 +115,7 @@ class TrainingConfig:
     num_steps: int = 100
     timestep_sampler: str = 'logit_normal'  # 'uniform' or 'logit_normal'
     use_config: bool = False  # ConFIG conflict-free gradient update over [flow, physics] groups
-    model_class: str = 'V4'  # 'V4' or 'V5' — selects model architecture in trainer
+    reset_optimizer_state: bool = False  # drop optimizer/scheduler state on resume (param groups changed)
 
 
 @dataclass
@@ -188,42 +188,3 @@ def save_config(config: FullConfig, path: str):
 def get_default_config() -> FullConfig:
     """Get default configuration."""
     return FullConfig()
-
-
-# Preset configurations for different use cases
-def get_small_config() -> FullConfig:
-    """Small model for debugging and quick experiments."""
-    return FullConfig(
-        model=FlexConfig(
-            ns=128,
-            nv=4,
-            pair_hidden_dim=128,
-            num_atom_layers=2,
-            num_token_layers=4,
-            num_atom_heads=4,
-            num_geo_heads=2,
-        ),
-        training=TrainingConfig(max_steps=10000),
-    )
-
-
-def get_base_config() -> FullConfig:
-    """Base model configuration (default)."""
-    return FullConfig()
-
-
-def get_large_config() -> FullConfig:
-    """Large model for best performance."""
-    return FullConfig(
-        model=FlexConfig(
-            ns=384,
-            nv=16,
-            pair_hidden_dim=384,
-            num_atom_layers=6,
-            num_token_layers=12,
-            num_atom_heads=12,
-            num_geo_heads=6,
-        ),
-        training=TrainingConfig(max_steps=200000),
-        optimizer=OptimizerConfig(muon_lr=0.01, adam_lr=5e-5),
-    )

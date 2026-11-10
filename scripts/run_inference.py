@@ -4,34 +4,59 @@
 
 Residue numbers in ``--residues`` / YAML must match parsed ``residue['resnum']``:
   * **mmCIF:** ``label_seq_id`` (integer).
-  * **PDB:** 1-based index along the chain (same as featurized ``pocket_features``
-    from PDB — not necessarily the author residue number; see ``pdb_resnum`` in
-    ``prep.parse.gemmi_parse_pdb`` if you need raw PDB numbering).
+  * **PDB:** 1-based index among the chain's standard amino-acid residues in file
+    order (modified residues such as MSE are skipped, so it is neither the author
+    number nor a plain position count; see ``pdb_resnum`` in
+    ``prep.parse.gemmi_parse_pdb`` for raw PDB numbering). Use
+    ``scripts/select_pocket.py`` rather than counting by hand.
 
 Supports single-system CLI mode and batch mode via a YAML config file.
 
+Pocket residues are selected at a 5 A heavy-atom cutoff around the ligand
+(``prep.parse.get_pocket_residues``, the training definition); use
+``scripts/select_pocket.py`` to compute them from a reference ligand.
+
 Single system:
-    python run_inference.py \\
-        --checkpoint model.ckpt \\
+    python scripts/run_inference.py \\
+        --checkpoint weights/weights.ckpt \\
         --receptor protein.pdb \\
         --residues A:42 A:43 A:44 B:10 B:11 \\
         --smiles "CC(=O)Nc1ccc(O)cc1" \\
+        --guidance \\
         --output-dir ./output
 
 Batch (YAML):
-    python run_inference.py --config batch.yaml
+    python scripts/run_inference.py --config batch.yaml
 
-YAML format:
-    checkpoint: model.ckpt
+YAML format (globals shown with the benchmark values):
+    checkpoint: weights/weights.ckpt
     num_samples: 10
-    num_steps: 100
-    schedule: log
+    num_steps: 20
+    schedule: uniform               # uniform | log
     seed: 42
     device: cuda
-    relax: true
-    return_trajectory: true
+    score_summary: false            # true -> per-sample summary.md (physics + torch Vina)
+    return_trajectory: false
     trajectory_stride: 1
+    trajectory_workers: 4           # 0 = auto
+    force_prepare: false            # true -> re-featurise even if system_data/ exists
     output_root: ./inference_output
+    guidance:
+      enabled: true
+      t_start: 0.0
+      scale: 100.0
+      schedule: linear_decay
+      bond_coef: 1.0
+      angle_coef: 1.0
+      vdw_coef: 5.0
+      vdw_active_coef: 1.0
+      vdw_max_coef: 0.0
+      torsion_coef: 0.25
+      chiral_coef: 1.0
+      chiral_buffer: 0.5236
+      grad_clip: 10.0
+    sde:
+      enabled: false
 
     systems:
       CDK2_inhibitor:
@@ -41,6 +66,8 @@ YAML format:
             A: [10, 12, 80, 81]
         ligand:
           smiles: "CC(=O)Nc1ccc(O)cc1"
+          reference_sdf: /data/cdk2_ligand.sdf   # optional; enables ligand RMSD in stats.jsonl
+          ions: ["[Zn+2]"]                        # optional free metal ions near the pocket
         output_dir: ./custom_output   # optional override
 
       EGFR_erlotinib:
@@ -51,17 +78,26 @@ YAML format:
             B: [790, 791]
         ligand:
           smiles: "C#Cc1cccc(Nc2ncnc3cc(OCCOC)c(OCCOC)cc23)c1"
+
+Per system, ``output_dir`` receives ``system_data/`` (features), ``sample_<i>/complex.cif``
+and ``sample_<i>/ligand.sdf`` per sample, ``results.pt`` (raw tensors), optionally
+``summary.md`` and ``sample_<i>/trajectory_complex.cif``. One JSON line per system
+(timings, atom counts, per-sample RMSD, or the failure reason) is appended to
+``<output_root>/stats.jsonl``.
 """
 
 import argparse
+import concurrent.futures
 import json
 import logging
+import multiprocessing
+import os
 import time
 import yaml
 import torch
 import numpy as np
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 from rdkit import Chem
 
@@ -71,6 +107,9 @@ from equiflex.prep.parse import parse_structure, overwrite_coords_on_reference_d
 from equiflex.prep.reference import generate_ligand_reference_data
 from equiflex.prep.featurize import ESM3Extractor, UniMolExtractor
 from equiflex.prep.process import process_ligands, process_pocket_residues
+from equiflex.prep.validation import (
+    save_unimol_cache, validate_cached_unimol, validate_unimol_shape,
+)
 
 from equiflex.model import FlexTrainer
 from equiflex.model.config import (
@@ -81,39 +120,100 @@ from equiflex.model.loss import LossConfig
 from equiflex.model.models import FlexConfig
 from equiflex.inference.sampler import FlowMatchingSampler
 from equiflex.inference.guidance import GuidanceConfig
-from equiflex.inference.sampler import SDEConfig
+from equiflex.inference.sampler import SDEConfig, BranchConfig
+from equiflex.inference.vina_scoring import score_files, count_active_torsions
 from equiflex.inference.relaxation import (
     compute_ligand_rmsd_from_coords,
-    relax_complex,
     write_complex_cif,
     write_complex_trajectory_cif,
     write_ligand_sdf,
 )
 
 
-def _build_guidance_config(spec) -> Optional[GuidanceConfig]:
+# Guidance terms whose numeric definition must match the loss the model was
+# trained against. Any of these NOT set explicitly in the YAML is overridden
+# with the checkpoint's training value by _sync_guidance_to_checkpoint.
+_TRAINING_MATCHED_FIELDS = ('bond_buffer', 'angle_buffer', 'vdw_buffer', 'vdw_cutoff', 'vdw_linear_onset', 'vdw_form', 'vdw_rec_rec_ratio')
+
+# guidance coefficient -> training loss weight. Followed only when the guidance
+# spec sets ``match_training_weights: true`` (the 90M benchmark recipe uses
+# hand-tuned coefficients that differ from its training weights). The native
+# H-bond contact term is crystal-supervised, so it has no guidance counterpart.
+_TRAINING_COEF_FIELDS = {
+    'bond_coef': 'bond_length_weight', 'angle_coef': 'bond_angle_weight',
+    'vdw_coef': 'vdw_weight', 'vdw_active_coef': 'vdw_active_weight',
+    'vdw_max_coef': 'vdw_max_weight', 'torsion_coef': 'torsion_weight',
+    'chiral_coef': 'chiral_weight',
+}
+
+# The only schedules ``inference.sampler.get_time_schedule`` implements; anything
+# else raises deep inside integration, after featurisation and model loading.
+_VALID_SCHEDULES = ('uniform', 'log')
+
+
+def _build_guidance_config(spec) -> Tuple[Optional[GuidanceConfig], Set[str]]:
     """Build a GuidanceConfig from a dict (YAML) or None.
 
-    Accepts a dict whose keys mirror GuidanceConfig fields. Returns None if
-    spec is None / empty / explicitly disabled, so the sampler runs vanilla.
+    Accepts a dict whose keys mirror GuidanceConfig fields. Returns
+    ``(None, set())`` if spec is None / empty / explicitly disabled, so the
+    sampler runs vanilla. The second element is the set of fields the caller
+    set explicitly, so checkpoint syncing can leave them alone.
     """
     if not spec:
-        return None
+        return None, set()
     if not spec.get('enabled', True):
-        return None
+        return None, set()
     fields = {
         'enabled', 't_start', 'scale', 'schedule', 'grad_clip',
         'bond_coef', 'angle_coef', 'vdw_coef', 'torsion_coef',
+        'chiral_coef', 'chiral_buffer', 'match_training_weights',
         'vdw_active_coef', 'vdw_max_coef', 'vdw_active_scale', 'vdw_max_alpha',
+        'vdw_form', 'vdw_rec_rec_ratio',
         'bond_buffer', 'angle_buffer',
-        'vdw_buffer', 'vdw_cutoff',
+        'vdw_buffer', 'vdw_cutoff', 'vdw_linear_onset',
         'one_minus_t_min',
         'sim_mc_guidance', 'sim_mc_n', 'sim_mc_std', 'sim_mc_scale',
-        'sim_mc_clash_count_coef', 'sim_mc_include_original',
+        'sim_mc_clash_count_coef', 'sim_mc_include_original', 'sim_mc_chunk',
     }
-    kwargs = {k: v for k, v in spec.items() if k in fields}
+    kwargs = {k: v for k, v in spec.items() if k in fields and v is not None}
     kwargs.setdefault('enabled', True)
-    return GuidanceConfig(**kwargs)
+    return GuidanceConfig(**kwargs), set(kwargs)
+
+
+def _sync_guidance_to_checkpoint(
+    guidance_cfg: Optional[GuidanceConfig],
+    explicit: Set[str],
+    train_config,
+) -> None:
+    """Align guidance buffers/cutoffs with the checkpoint's training values.
+
+    The guidance energy is only a meaningful proxy for "what the model was
+    trained to consider physical" if its flat-bottom buffers and vdW cutoff
+    match training. They are separate defaults on GuidanceConfig, so a
+    checkpoint trained with e.g. vdw_buffer=0.15 / vdw_cutoff=4.0 would
+    otherwise be guided by a 0.225 / 6.0 energy — a more permissive lower
+    bound, and a ~3x weaker per-clash gradient via the 1/n_pairs
+    normalisation. YAML-set values win; anything else follows the checkpoint.
+    """
+    if guidance_cfg is None or train_config is None:
+        return
+    loss_cfg = getattr(train_config, 'loss', train_config)
+    synced = {}
+    fields = list(_TRAINING_MATCHED_FIELDS)
+    if guidance_cfg.match_training_weights:
+        fields += list(_TRAINING_COEF_FIELDS)
+    for field in fields:
+        if field in explicit:
+            continue
+        value = getattr(loss_cfg, _TRAINING_COEF_FIELDS.get(field, field), None)
+        if value is None or value == getattr(guidance_cfg, field):
+            continue
+        value = value if isinstance(value, (bool, str)) else float(value)
+        setattr(guidance_cfg, field, value)
+        synced[field] = value
+    if synced:
+        pairs = '  '.join(f'{k}={v}' for k, v in synced.items())
+        print(f"  guidance   : synced from checkpoint -> {pairs}")
 
 
 def _build_sde_config(spec) -> Optional[SDEConfig]:
@@ -122,10 +222,22 @@ def _build_sde_config(spec) -> Optional[SDEConfig]:
         return None
     if not spec.get('enabled', True):
         return None
-    fields = {'enabled', 'sigma', 'eps_w', 'w_cutoff', 'mode'}
-    kwargs = {k: v for k, v in spec.items() if k in fields}
+    fields = {'enabled', 'sigma', 'eps_w', 'w_cutoff', 'mode', 'score_drift'}
+    kwargs = {k: v for k, v in spec.items() if k in fields and v is not None}
     kwargs.setdefault('enabled', True)
     return SDEConfig(**kwargs)
+
+
+def _build_branch_config(spec) -> Optional[BranchConfig]:
+    """Build a BranchConfig from a dict (YAML) or None."""
+    if not spec:
+        return None
+    if not spec.get('enabled', True):
+        return None
+    fields = {'enabled', 'at_t', 'factor', 'max_rot_deg', 'trans_sigma'}
+    kwargs = {k: v for k, v in spec.items() if k in fields and v is not None}
+    kwargs.setdefault('enabled', True)
+    return BranchConfig(**kwargs)
 
 
 def find_reference_ligand_path(
@@ -168,6 +280,84 @@ torch.serialization.add_safe_globals([
 ])
 
 logger = logging.getLogger(__name__)
+
+
+def _write_trajectory_worker(task):
+    """Process-pool worker for one sample trajectory."""
+    (sample, pocket_feats, ligand_feats, rec_trajectory, lig_trajectory,
+     backbone_com, output_path, protein_path, stride) = task
+    meta = write_complex_trajectory_cif(
+        pocket_feats, ligand_feats, rec_trajectory, lig_trajectory,
+        backbone_com, output_path, protein_path=protein_path, stride=stride,
+    )
+    return sample, {
+        'path': str(meta['path']),
+        'format': str(meta['format']),
+        'n_frames': int(meta['n_frames']),
+        'chimerax': str(meta['chimerax_hint']),
+    }
+
+
+def _write_sample_score_summary(
+    output_dir: Path,
+    sample_stats: List[Dict],
+    results: Dict[str, torch.Tensor],
+) -> Path:
+    """Write per-sample physics and Vina scores to ``summary.md``."""
+    import gemmi
+    import tempfile
+
+    physics = results.get('physics_loss')
+    rows = []
+    notes = []
+    for stat in sample_stats:
+        sample = int(stat['sample'])
+        sample_dir = output_dir / f'sample_{sample}'
+        complex_path = sample_dir / 'complex.cif'
+        ligand_path = sample_dir / 'ligand.sdf'
+        phys = float(physics[sample]) if physics is not None else None
+        vina = None
+        try:
+            source = gemmi.read_structure(str(complex_path))
+            protein = gemmi.Structure()
+            protein.name = source.name
+            protein.add_model(gemmi.Model('1'))
+            for source_chain in source[0]:
+                chain = gemmi.Chain(source_chain.name)
+                for residue in source_chain:
+                    info = gemmi.find_tabulated_residue(residue.name)
+                    if info and info.is_amino_acid():
+                        chain.add_residue(residue)
+                if len(chain) > 0:
+                    protein[0].add_chain(chain)
+            with tempfile.NamedTemporaryFile(suffix='.pdb') as tmp:
+                protein.write_pdb(tmp.name)
+                nrot = count_active_torsions(ligand_path)
+                vina = float(score_files(tmp.name, ligand_path, num_rot=nrot)['affinity'])
+        except Exception as exc:
+            notes.append(f'- `sample_{sample}` Vina scoring failed: `{exc}`')
+        rows.append((sample, phys, vina))
+
+    def fmt(value):
+        return 'N/A' if value is None or not np.isfinite(value) else f'{value:.6f}'
+
+    lines = [
+        '# Inference score summary',
+        '',
+        '| Sample | Physics loss | Vina affinity (kcal/mol) |',
+        '|---:|---:|---:|',
+    ]
+    lines.extend(
+        f'| sample_{sample} | {fmt(phys)} | {fmt(vina)} |'
+        for sample, phys, vina in rows
+    )
+    if physics is None:
+        notes.append('- Physics loss is unavailable because physics guidance was disabled.')
+    if notes:
+        lines.extend(['', '## Notes', '', *notes])
+    summary_path = output_dir / 'summary.md'
+    summary_path.write_text('\n'.join(lines) + '\n')
+    return summary_path
 
 
 # ---------------------------------------------------------------------------
@@ -247,6 +437,7 @@ def build_ligand_from_smiles(smiles: str) -> Dict:
         'ref_coords': ref['ref_coords'],
         'constraint_matrix': ref['constraint_matrix'],
         'sp2_torsion_indices': ref['sp2_torsion_indices'],
+        'chiral_atom_indices': ref['chiral_atom_indices'],
         'mapping': ref['mapping'],
     }
 
@@ -283,10 +474,28 @@ def build_ion_ligand(ion_smiles: str) -> Dict:
 def load_system_data(system_dir: Path) -> Dict[str, torch.Tensor]:
     """Load featurized system data into the dict expected by FlowMatchingSampler."""
     ligand_feats = torch.load(system_dir / 'ligand_features.pt', weights_only=False)
-    pocket_feats = torch.load(system_dir / 'pocket_features.pt', weights_only=False)
-    esm_emb = torch.load(system_dir / 'esm3_embeddings.pt', weights_only=False)
     unimol_emb = torch.load(system_dir / 'unimol_embeddings.pt', weights_only=False)
+    validate_cached_unimol(system_dir, ligand_feats, unimol_emb)
+    return assemble_system_data(
+        ligand_feats=ligand_feats,
+        pocket_feats=torch.load(system_dir / 'pocket_features.pt', weights_only=False),
+        esm_emb=torch.load(system_dir / 'esm3_embeddings.pt', weights_only=False),
+        unimol_emb=unimol_emb,
+    )
 
+
+def assemble_system_data(
+    ligand_feats: Dict,
+    pocket_feats: Dict,
+    esm_emb: torch.Tensor,
+    unimol_emb: torch.Tensor,
+) -> Dict[str, torch.Tensor]:
+    """Build the unbatched sampler input from in-memory feature dicts.
+
+    Separate from the on-disk loader so ``run_hts.py`` can pair one
+    featurised pocket with many ligands without a system_data/ dir per ligand.
+    """
+    validate_unimol_shape(ligand_feats, unimol_emb, 'in-memory inference input')
     rec_coords = pocket_feats['coords']
     lig_coords = ligand_feats['coords']
 
@@ -324,15 +533,35 @@ def load_system_data(system_dir: Path) -> Dict[str, torch.Tensor]:
     rec_coords_centered = rec_coords - backbone_com
     lig_coords_centered = lig_coords - backbone_com
 
-    def _load_constraint(feats, n):
+    def _load_constraint(feats, label):
+        # prep raises on a missing constraint matrix (prep/process.py), so any
+        # featurised system has one. No zeros fallback: zeros read as "no pair
+        # info" to the model but as "every bond must be 0 A long" to the physics
+        # guidance, which consumes the same tensor as literal distance bounds.
         cm = feats.get('constraint_matrix', None)
         if cm is None:
-            return torch.zeros(n, n, 1, dtype=torch.float32)
+            raise KeyError(
+                f"{label}_features.pt has no 'constraint_matrix' — re-run "
+                f"featurisation for this system (prep writes it unconditionally)."
+            )
         if isinstance(cm, np.ndarray):
             cm = torch.from_numpy(cm).float()
         if cm.ndim == 2:
             cm = cm.unsqueeze(-1)
         return cm
+
+    def _load_indices(feats, key, label):
+        # Absent key != empty index set. Absent means the .pt predates the feature
+        # (see _system_data_is_current); empty means the molecule genuinely has no
+        # such centres. Both reach guidance as a silent no-op, so separate them here.
+        if key not in feats:
+            raise KeyError(
+                f"{label}_features.pt has no '{key}' — this featurisation predates "
+                f"the feature, so the guidance term that consumes it would be "
+                f"silently skipped. Delete the system_data dir or re-run with "
+                f"--force-prepare."
+            )
+        return feats[key]
 
     N_rec = rec_coords.shape[0]
     N_lig = lig_coords.shape[0]
@@ -347,16 +576,17 @@ def load_system_data(system_dir: Path) -> Dict[str, torch.Tensor]:
         'rec_cb_mask':           rec_cb_mask,
         'rec_missing_mask':      rec_missing_mask,
         'rec_backbone_atom_indices': backbone_atom_indices,
-        'rec_constraint_matrix': _load_constraint(pocket_feats, N_rec),
-        'rec_sp2_torsion_indices': pocket_feats.get('sp2_torsion_indices'),
+        'rec_constraint_matrix': _load_constraint(pocket_feats, 'pocket'),
+        'rec_sp2_torsion_indices': _load_indices(pocket_feats, 'sp2_torsion_indices', 'pocket'),
         'esm_embeddings':        esm_emb,
         'lig_atom_feats':        ligand_feats['atom_features'],
         'lig_atom_coords':       lig_coords_centered,
         'lig_atom_ref_coords':   ligand_feats['ref_coords'],
         'lig_bond_feats':        ligand_feats['bond_features'],
         'lig_uid_vec':           ligand_feats['ligand_uid_vec'],
-        'lig_constraint_matrix': _load_constraint(ligand_feats, N_lig),
-        'lig_sp2_torsion_indices': ligand_feats.get('sp2_torsion_indices'),
+        'lig_constraint_matrix': _load_constraint(ligand_feats, 'ligand'),
+        'lig_sp2_torsion_indices': _load_indices(ligand_feats, 'sp2_torsion_indices', 'ligand'),
+        'lig_chiral_indices':     _load_indices(ligand_feats, 'chiral_atom_indices', 'ligand'),
         'unimol_embeddings':     unimol_emb,
         '_backbone_com':   backbone_com,
         '_n_rec':          N_rec,
@@ -464,7 +694,7 @@ def prepare_system(
     all_emb = []
     for i, emb in enumerate(embeddings):
         all_emb.append(emb if emb is not None else torch.zeros(n_atoms_per_lig[i], 1536))
-    torch.save(torch.cat(all_emb), system_dir / 'unimol_embeddings.pt')
+    save_unimol_cache(system_dir, ligand_features, ligands, torch.cat(all_emb))
     if own_unimol:
         del unimol_extractor
 
@@ -481,14 +711,15 @@ def run_single_system(
     num_steps: int,
     schedule: str,
     seed: int,
-    relax: bool,
-    relax_max_iterations: int,
+    score_summary: bool = False,
     return_trajectory: bool = False,
     trajectory_stride: int = 1,
+    trajectory_workers: int = 0,
     protein_path: Optional[Path] = None,
     reference_ligand_path: Optional[Path] = None,
     guidance: Optional[GuidanceConfig] = None,
     sde: Optional[SDEConfig] = None,
+    branch: Optional[BranchConfig] = None,
 ):
     """Sample and write outputs for one featurized system.
 
@@ -509,6 +740,7 @@ def run_single_system(
         return_trajectory=return_trajectory,
         guidance=guidance,
         sde=sde,
+        branch=branch,
     )
     inference_s = round(time.perf_counter() - t0, 3)
     print(f"  inference: {inference_s:.1f}s  ({num_samples} samples × {num_steps} steps)")
@@ -527,8 +759,6 @@ def run_single_system(
         else:
             print(f"  reference ligand RMSD: {reference_ligand_path}")
             results['ligand_rmsd'] = torch.full((B,), float('nan'))
-            if relax:
-                results['ligand_rmsd_relaxed'] = torch.full((B,), float('nan'))
 
     sample_stats: List[Dict] = []
 
@@ -558,94 +788,34 @@ def run_single_system(
             s_stat['ligand_rmsd'] = round(rmsd, 4) if np.isfinite(rmsd) else None
             results['ligand_rmsd'][b] = float(rmsd)
 
-        if relax:
-            try:
-                t1 = time.perf_counter()
-                relaxed = relax_complex(
-                    system_dir=system_dir,
-                    rec_coords=rec_b, lig_coords=lig_b,
-                    backbone_com=backbone_com,
-                    output_dir=None,
-                    max_iterations=relax_max_iterations,
-                    write_structures=False,
-                )
-                mmff_s = round(time.perf_counter() - t1, 3)
-                write_ligand_sdf(
-                    ligands_data[0], relaxed['lig_coords'], backbone_com,
-                    sample_dir / 'ligand_relaxed.sdf',
-                )
-                write_complex_cif(
-                    pocket_feats, ligand_feats,
-                    relaxed['rec_coords'], relaxed['lig_coords'], backbone_com,
-                    sample_dir / 'complex_relaxed.cif',
-                    protein_path=protein_path,
-                )
-                results['lig_coords_final'][b] = relaxed['lig_coords']
-                results['rec_coords_final'][b] = relaxed['rec_coords']
-                e0 = round(relaxed['initial_energy_kcal_mol'], 3)
-                e1 = round(relaxed['final_energy_kcal_mol'], 3)
-                s_stat.update({'mmff_s': mmff_s, 'e0_kcal_mol': e0, 'e1_kcal_mol': e1})
-                if reference_ligand_path is not None:
-                    rmsd_relaxed = compute_ligand_rmsd_from_coords(
-                        ligands_data[0],
-                        relaxed['lig_coords'],
-                        backbone_com,
-                        reference_ligand_path,
-                    )
-                    s_stat['ligand_rmsd_relaxed'] = (
-                        round(rmsd_relaxed, 4) if np.isfinite(rmsd_relaxed) else None
-                    )
-                    results['ligand_rmsd_relaxed'][b] = float(rmsd_relaxed)
-                if relaxed.get('minimization_ok', True):
-                    print(
-                        f"    sample_{b}: MMFF {mmff_s:.1f}s  {e0:.1f} -> {e1:.1f} kcal/mol"
-                    )
-                else:
-                    s_stat['mmff_skipped'] = True
-                    print(
-                        f"    sample_{b}: MMFF/UFF skipped (e.g. kekulize); "
-                        f"wrote unrelaxed coords to ligand_relaxed.sdf / complex_relaxed.cif"
-                    )
-            except Exception as e:
-                s_stat['mmff_error'] = str(e)
-                print(f"    sample_{b}: relaxation failed - {e}")
-                # Same filenames as success path; coordinates match pre-MMFF prediction
-                write_ligand_sdf(
-                    ligands_data[0], lig_b, backbone_com,
-                    sample_dir / 'ligand_relaxed.sdf',
-                )
-                write_complex_cif(
-                    pocket_feats, ligand_feats,
-                    rec_b, lig_b, backbone_com,
-                    sample_dir / 'complex_relaxed.cif',
-                    protein_path=protein_path,
-                )
-
-        if return_trajectory and results.get('rec_trajectory') is not None:
-            traj_meta = write_complex_trajectory_cif(
-                pocket_feats,
-                ligand_feats,
-                results['rec_trajectory'][b],
-                results['lig_trajectory'][b],
-                backbone_com,
-                sample_dir / 'trajectory_complex.cif',
-                protein_path=protein_path,
-                stride=trajectory_stride,
-            )
-            s_stat['trajectory'] = {
-                'path': str(traj_meta['path']),
-                'format': str(traj_meta['format']),
-                'n_frames': int(traj_meta['n_frames']),
-                'chimerax': str(traj_meta['chimerax_hint']),
-            }
-            print(
-                f"    sample_{b}: trajectory {traj_meta['format']} "
-                f"({traj_meta['n_frames']} frames) -> {traj_meta['path']}"
-            )
-            print(f"      ChimeraX: {traj_meta['chimerax_hint']}")
-
         sample_stats.append(s_stat)
 
+    if return_trajectory and results.get('rec_trajectory') is not None:
+        workers = trajectory_workers or min(B, max(1, os.cpu_count() or 1))
+        workers = max(1, min(int(workers), B))
+        tasks = [
+            (b, pocket_feats, ligand_feats, results['rec_trajectory'][b],
+             results['lig_trajectory'][b], backbone_com,
+             output_dir / f'sample_{b}' / 'trajectory_complex.cif',
+             protein_path, trajectory_stride)
+            for b in range(B)
+        ]
+        # CIF writing is CPU-only. Fork avoids re-importing the model stack in
+        # every worker; workers never touch CUDA tensors (results are on CPU).
+        context = multiprocessing.get_context('fork')
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=workers, mp_context=context,
+        ) as pool:
+            for sample, meta in pool.map(_write_trajectory_worker, tasks):
+                sample_stats[sample]['trajectory'] = meta
+                print(
+                    f"    sample_{sample}: trajectory {meta['format']} "
+                    f"({meta['n_frames']} frames) -> {meta['path']}"
+                )
+
+    if score_summary:
+        summary_path = _write_sample_score_summary(output_dir, sample_stats, results)
+        print(f"  score summary: {summary_path}")
     torch.save(results, output_dir / 'results.pt')
 
     return {
@@ -767,6 +937,47 @@ def parse_yaml_config(config_path: Path) -> Dict:
 
 
 # ---------------------------------------------------------------------------
+# Featurisation currency
+# ---------------------------------------------------------------------------
+
+_REQUIRED_SYSTEM_FILES = (
+    'ligand_features.pt', 'pocket_features.pt',
+    'esm3_embeddings.pt', 'unimol_embeddings.pt',
+)
+# Existence is not enough: a system_data dir written before a feature was added
+# loads fine but silently disables the guidance term that consumes it (e.g. a
+# pre-chiral_atom_indices ligand_features.pt makes chiral_coef a no-op). Check
+# the schema too, so stale dirs re-prepare instead of degrading in silence.
+_REQUIRED_FEATURE_KEYS = {
+    'ligand_features.pt': ('constraint_matrix', 'sp2_torsion_indices',
+                           'chiral_atom_indices'),
+    'pocket_features.pt': ('constraint_matrix', 'sp2_torsion_indices',
+                           'cb_mask', 'missing_mask'),
+}
+
+def system_data_is_current(sys_dir: Path) -> Optional[str]:
+    """None if ``sys_dir`` is a usable featurisation, else the reason it must be re-prepared."""
+    for fname in _REQUIRED_SYSTEM_FILES:
+        if not (sys_dir / fname).exists():
+            return f'missing {fname}'
+    for fname, keys in _REQUIRED_FEATURE_KEYS.items():
+        try:
+            feats = torch.load(sys_dir / fname, map_location='cpu', weights_only=False)
+        except Exception as exc:
+            return f'{fname} unreadable ({exc})'
+        absent = [k for k in keys if k not in feats]
+        if absent:
+            return f'{fname} predates {"/".join(absent)}'
+    try:
+        ligand_feats = torch.load(sys_dir / 'ligand_features.pt', map_location='cpu', weights_only=False)
+        unimol_emb = torch.load(sys_dir / 'unimol_embeddings.pt', map_location='cpu', weights_only=False)
+        validate_cached_unimol(sys_dir, ligand_feats, unimol_emb)
+    except Exception as exc:
+        return str(exc)
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -778,7 +989,10 @@ def main():
 
     # ── Mode selection ────────────────────────────────────────────────
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument('--config', type=str, default='/home/mhjang/workspace/flex/configs/base.yaml',
+    # No default: argparse fills defaults even for un-passed members of a
+    # mutually exclusive group, so a default here makes `args.config` always
+    # truthy and silently swallows --receptor single-system mode.
+    mode.add_argument('--config', type=str, default=None,
                       help='Path to YAML config for batch inference')
     mode.add_argument('--receptor', type=str,
                       help='Path to receptor .pdb / .ent / .cif / .mmcif (single-system mode)')
@@ -796,39 +1010,44 @@ def main():
     parser.add_argument('--output-dir', type=str, default='./inference_output')
 
     # Shared options (also settable in YAML globals)
-    parser.add_argument('--checkpoint', type=str, default='/home/mhjang/workspace/flex/checkpoints/b200_quadratic/last.ckpt',
+    parser.add_argument('--checkpoint', type=str, default='weights/weights.ckpt',
                         help='Path to model checkpoint (.ckpt)')
     parser.add_argument('--num-samples', type=int, default=10)
-    parser.add_argument('--num-steps', type=int, default=100)
-    parser.add_argument('--schedule', type=str, default='log',
-                        choices=['linear', 'log'])
+    parser.add_argument('--num-steps', type=int, default=20)
+    parser.add_argument('--schedule', type=str, default='uniform',
+                        choices=_VALID_SCHEDULES,
+                        help='Time schedule for Euler integration '
+                             '(inference.sampler.get_time_schedule)')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--device', type=str,
                         default='cuda' if torch.cuda.is_available() else 'cpu')
-    parser.add_argument('--relax', action='store_true',
-                        help='Run MMFF energy minimisation')
-    parser.add_argument('--relax-max-iterations', type=int, default=200)
     parser.add_argument('--force-prepare', action='store_true',
                         help='Re-run featurization even if system_data/ already exists')
     parser.add_argument('--return-trajectory', action='store_true', default=False)
     parser.add_argument('--trajectory-stride', type=int, default=1,
                         help='When saving trajectory CIF, keep every N-th integration frame')
+    parser.add_argument('--trajectory-workers', type=int, default=0,
+                        help='Trajectory writer processes; 0 selects automatically')
 
     guide_group = parser.add_argument_group(
         'guidance', 'Tweedie x_1 physics guidance during integration')
     guide_group.add_argument('--guidance', action='store_true',
                              help='Enable Tweedie x_1 physics guidance')
-    guide_group.add_argument('--guide-t-start', type=float, default=0.3)
-    guide_group.add_argument('--guide-scale', type=float, default=1.0,
-                             help='cov-A guidance scale lambda; tune per system (default: 1.0)')
+    guide_group.add_argument('--guide-t-start', type=float, default=0.0)
+    guide_group.add_argument('--guide-scale', type=float, default=100.0,
+                             help='cov-A guidance scale lambda (default: 100.0, the benchmark value)')
     guide_group.add_argument('--guide-schedule', type=str, default='linear_decay',
                              choices=['const', 'linear_decay', 'cosine_decay', 'exp_decay'],
                              help='Decaying-in-t cov-A schedule (default: linear_decay)')
     guide_group.add_argument('--guide-bond-coef', type=float, default=1.0)
     guide_group.add_argument('--guide-angle-coef', type=float, default=1.0)
     guide_group.add_argument('--guide-vdw-coef', type=float, default=5.0)
-    guide_group.add_argument('--guide-torsion-coef', type=float, default=1.0)
-    guide_group.add_argument('--guide-grad-clip', type=float, default=0.0)
+    guide_group.add_argument('--guide-vdw-active-coef', type=float, default=1.0)
+    guide_group.add_argument('--guide-vdw-max-coef', type=float, default=0.0)
+    guide_group.add_argument('--guide-torsion-coef', type=float, default=0.25)
+    guide_group.add_argument('--guide-chiral-coef', type=float, default=1.0)
+    guide_group.add_argument('--guide-chiral-buffer', type=float, default=0.5236)
+    guide_group.add_argument('--guide-grad-clip', type=float, default=10.0)
     guide_group.add_argument('--guide-sim-mc', action='store_true',
                              help='Use Cartesian Sim-MC x1 proposals instead of gradient guidance')
     guide_group.add_argument('--guide-sim-mc-n', type=int, default=32,
@@ -839,16 +1058,32 @@ def main():
                              help='Softmax inverse-temperature for Sim-MC candidate weights')
     guide_group.add_argument('--guide-sim-mc-clash-count-coef', type=float, default=0.0,
                              help='Extra energy penalty per active vdW clash')
+    br_group = parser.add_argument_group(
+        'branch', 'Mid-flight trajectory branching (diversifies poses)')
+    br_group.add_argument('--branch', action='store_true',
+                          help='duplicate each trajectory at --branch-at with a '
+                               'rotated ligand copy (factor-1 extra copies)')
+    br_group.add_argument('--branch-at', type=float, default=0.5,
+                          help='time at which to branch (default: 0.5)')
+    br_group.add_argument('--branch-factor', type=int, default=2,
+                          help='copies per trajectory including the original')
+    br_group.add_argument('--branch-max-rot-deg', type=float, default=180.0,
+                          help='max ligand rotation applied to extra copies')
+    br_group.add_argument('--branch-trans-sigma', type=float, default=1.0,
+                          help='Gaussian translation sigma in Angstrom')
     sde_group = parser.add_argument_group(
         'sde', 'Stochastic Euler-Maruyama integration (adds diversity)')
     sde_group.add_argument('--sde', action='store_true',
                            help='Enable SDE integration (sigma>0 injects noise per step)')
-    sde_group.add_argument('--sde-sigma', type=float, default=0.3,
-                           help='Noise scale; 0 = deterministic. Default: 0.3')
+    sde_group.add_argument('--sde-sigma', type=float, default=0.1,
+                           help='Noise scale; 0 = deterministic. Default: 0.1')
     sde_group.add_argument('--sde-eps-w', type=float, default=0.01,
                            help='Epsilon in diffusion-coefficient denominator')
     sde_group.add_argument('--sde-w-cutoff', type=float, default=0.99,
                            help='Zero diffusion above this t')
+    sde_group.add_argument('--sde-score-drift', action='store_true',
+                           help='marginal-preserving OU step (adds the score drift '
+                                'implied by the interpolant) instead of bare noise')
     sde_group.add_argument('--sde-mode', type=str, default='both',
                            choices=['both', 'receptor', 'ligand'],
                            help='Which subsystem gets SDE noise (default: both)')
@@ -864,15 +1099,21 @@ def main():
         num_samples = g.get('num_samples', args.num_samples)
         num_steps = g.get('num_steps', args.num_steps)
         schedule = g.get('schedule', args.schedule)
+        if schedule not in _VALID_SCHEDULES:
+            parser.error(
+                f"schedule {schedule!r} in {args.config} is not supported; "
+                f"choose one of {list(_VALID_SCHEDULES)}"
+            )
         seed = g.get('seed', args.seed)
         device = g.get('device', args.device)
-        relax = g.get('relax', args.relax)
-        relax_max_iters = g.get('relax_max_iterations', args.relax_max_iterations)
+        score_summary = bool(g.get('score_summary', False))
         force_prepare = g.get('force_prepare', args.force_prepare)
         return_traj = g.get('return_trajectory', args.return_trajectory)
         traj_stride = g.get('trajectory_stride', args.trajectory_stride)
-        guidance_cfg = _build_guidance_config(g.get('guidance'))
+        traj_workers = g.get('trajectory_workers', args.trajectory_workers)
+        guidance_cfg, guidance_explicit = _build_guidance_config(g.get('guidance'))
         sde_cfg = _build_sde_config(g.get('sde'))
+        branch_cfg = _build_branch_config(g.get('branch'))
         systems = cfg['systems']
         stats_root = cfg['output_root']
     else:
@@ -897,12 +1138,12 @@ def main():
         schedule = args.schedule
         seed = args.seed
         device = args.device
-        relax = args.relax
-        relax_max_iters = args.relax_max_iterations
+        score_summary = False
         force_prepare = args.force_prepare
         return_traj = args.return_trajectory
         traj_stride = args.trajectory_stride
-        guidance_cfg = _build_guidance_config({
+        traj_workers = args.trajectory_workers
+        guidance_cfg, guidance_explicit = _build_guidance_config({
             'enabled': args.guidance,
             't_start': args.guide_t_start,
             'scale': args.guide_scale,
@@ -910,7 +1151,11 @@ def main():
             'bond_coef': args.guide_bond_coef,
             'angle_coef': args.guide_angle_coef,
             'vdw_coef': args.guide_vdw_coef,
+            'vdw_active_coef': args.guide_vdw_active_coef,
+            'vdw_max_coef': args.guide_vdw_max_coef,
             'torsion_coef': args.guide_torsion_coef,
+            'chiral_coef': args.guide_chiral_coef,
+            'chiral_buffer': args.guide_chiral_buffer,
             'grad_clip': args.guide_grad_clip,
             'sim_mc_guidance': args.guide_sim_mc,
             'sim_mc_n': args.guide_sim_mc_n,
@@ -918,9 +1163,17 @@ def main():
             'sim_mc_scale': args.guide_sim_mc_scale,
             'sim_mc_clash_count_coef': args.guide_sim_mc_clash_count_coef,
         })
+        branch_cfg = _build_branch_config({
+            'enabled': args.branch,
+            'at_t': args.branch_at,
+            'factor': args.branch_factor,
+            'max_rot_deg': args.branch_max_rot_deg,
+            'trans_sigma': args.branch_trans_sigma,
+        })
         sde_cfg = _build_sde_config({
             'enabled': args.sde,
             'sigma': args.sde_sigma,
+            'score_drift': args.sde_score_drift,
             'eps_w': args.sde_eps_w,
             'w_cutoff': args.sde_w_cutoff,
             'mode': args.sde_mode,
@@ -945,9 +1198,11 @@ def main():
     print(f"Flex Inference — {n_sys} system(s)")
     print(f"  checkpoint : {checkpoint}")
     print(f"  samples    : {num_samples}  steps: {num_steps}  schedule: {schedule}")
-    print(f"  relax      : {relax}  device: {device}")
+    print(f"  device     : {device}")
+    print(f"  summaries  : {'physics + Vina' if score_summary else 'disabled'}")
     if return_traj:
-        print(f"  trajectory : save CIF (stride={traj_stride})")
+        worker_label = traj_workers or 'auto'
+        print(f"  trajectory : save CIF (stride={traj_stride}, workers={worker_label})")
     if guidance_cfg is not None:
         guide_mode = "sim-mc" if guidance_cfg.sim_mc_guidance else "cov-A"
         print(
@@ -970,21 +1225,27 @@ def main():
     print(f"{'='*60}\n")
 
     # ── Step 1: Prepare systems (skip per-system if data exists) ─────
-    _REQUIRED_SYSTEM_FILES = (
-        'ligand_features.pt', 'pocket_features.pt',
-        'esm3_embeddings.pt', 'unimol_embeddings.pt',
-    )
-    systems_to_prepare = [
-        s for s in systems
-        if force_prepare or not all(
-            (s['output_dir'] / 'system_data' / f).exists()
-            for f in _REQUIRED_SYSTEM_FILES
-        )
-    ]
+    stale_reasons = {}
+    systems_to_prepare = []
+    for s in systems:
+        if force_prepare:
+            systems_to_prepare.append(s)
+            continue
+        reason = system_data_is_current(s['output_dir'] / 'system_data')
+        if reason is not None:
+            systems_to_prepare.append(s)
+            stale_reasons[s['id']] = reason
 
+    prepare_failures: Dict[str, str] = {}
     if systems_to_prepare:
         print(f"Preparing {len(systems_to_prepare)}/{n_sys} system(s) "
-              f"({'forced' if force_prepare else 'missing data'})...")
+              f"({'forced' if force_prepare else 'missing or outdated data'})...")
+        outdated = {k: v for k, v in stale_reasons.items() if 'predates' in v}
+        if outdated:
+            sample = list(outdated.items())[:3]
+            print(f"  {len(outdated)} system(s) have outdated features and will be "
+                  f"re-featurised, e.g. " +
+                  '; '.join(f'{k}: {v}' for k, v in sample))
         print("Loading embedding models (shared across systems)...")
         esm_ext = ESM3Extractor(device=device)
         unimol_ext = UniMolExtractor(model_size='1.1B')
@@ -1005,6 +1266,7 @@ def main():
                 )
                 print(f"  Preparation complete.")
             except Exception as e:
+                prepare_failures[s['id']] = repr(e)
                 print(f"  [FAIL] {e}")
 
         del esm_ext, unimol_ext
@@ -1016,6 +1278,10 @@ def main():
     print(f"\nLoading model: {checkpoint}")
     ckpt = torch.load(checkpoint, map_location='cpu', weights_only=False)
     trainer = FlexTrainer.load_from_checkpoint(checkpoint, map_location='cpu')
+
+    _sync_guidance_to_checkpoint(
+        guidance_cfg, guidance_explicit, ckpt.get('hyper_parameters', {}).get('config'),
+    )
 
     if 'ema_state_dict' in ckpt:
         shadow = ckpt['ema_state_dict']['shadow']
@@ -1037,8 +1303,15 @@ def main():
     with open(stats_file, 'a') as sf:
         for i, s in enumerate(systems, 1):
             sys_dir = s['output_dir'] / 'system_data'
-            if not (sys_dir / 'ligand_features.pt').exists():
-                print(f"[{i}/{n_sys}] {s['id']}: skipped (not prepared)")
+            # Gate on the prepare outcome, not on file presence: prepare_system writes
+            # ligand/pocket features before the ESM3/UniMol stages, so a failed
+            # re-featurisation leaves a fresh pocket_features.pt beside stale
+            # embeddings and the sampler would run on the mismatch.
+            reason = prepare_failures.get(s['id']) or system_data_is_current(sys_dir)
+            if reason is not None:
+                print(f"[{i}/{n_sys}] {s['id']}: skipped ({reason})")
+                sf.write(json.dumps({'system': s['id'], 'error': reason}) + '\n')
+                sf.flush()
                 n_fail += 1
                 continue
 
@@ -1052,10 +1325,10 @@ def main():
                     num_steps=num_steps,
                     schedule=schedule,
                     seed=seed,
-                    relax=relax,
-                    relax_max_iterations=relax_max_iters,
+                    score_summary=score_summary,
                     return_trajectory=return_traj,
                     trajectory_stride=traj_stride,
+                    trajectory_workers=traj_workers,
                     protein_path=Path(s['receptor']) if s.get('receptor') else None,
                     reference_ligand_path=find_reference_ligand_path(
                         Path(s['receptor']) if s.get('receptor') else None,
@@ -1064,6 +1337,7 @@ def main():
                     ),
                     guidance=guidance_cfg,
                     sde=sde_cfg,
+                    branch=branch_cfg,
                 )
                 stats['system'] = s['id']
                 sf.write(json.dumps(stats) + '\n')
@@ -1072,6 +1346,8 @@ def main():
                 print(f"  -> {s['output_dir']}")
             except Exception as e:
                 n_fail += 1
+                sf.write(json.dumps({'system': s['id'], 'error': repr(e)}) + '\n')
+                sf.flush()
                 print(f"  [FAIL] {e}")
 
     print(f"\n{'='*60}")

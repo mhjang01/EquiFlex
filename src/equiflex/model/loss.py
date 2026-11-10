@@ -52,6 +52,20 @@ def _load_period_group_to_vdw_radius() -> torch.Tensor:
 
 PERIOD_GROUP_TO_VDW_RADIUS = _load_period_group_to_vdw_radius()
 
+# Per-device copies of the radius table. Without the cache every vdW loss call
+# issues a host-to-device copy of the table, which is both a per-step cost and a
+# CPU-side op that prevents torch.compile from capturing the energy in a CUDA
+# graph (inference guidance runs the energy at every integration step).
+_VDW_RADIUS_BY_DEVICE: Dict[torch.device, torch.Tensor] = {}
+
+
+def _vdw_radius_table(device: torch.device) -> torch.Tensor:
+    table = _VDW_RADIUS_BY_DEVICE.get(device)
+    if table is None:
+        table = PERIOD_GROUP_TO_VDW_RADIUS.to(device)
+        _VDW_RADIUS_BY_DEVICE[device] = table
+    return table
+
 
 def _vdw_radius_from_features(atom_feats: torch.Tensor) -> torch.Tensor:
     period_one_hot = atom_feats[..., ATOM_CONTEXT_DIM:ATOM_CONTEXT_DIM + 7]
@@ -65,7 +79,7 @@ def _vdw_radius_from_features(atom_feats: torch.Tensor) -> torch.Tensor:
     period_idx = torch.where(period_valid, period_idx, period_idx.new_zeros(()))
     group_idx = torch.where(group_valid, group_idx, group_idx.new_zeros(()))
 
-    lookup = PERIOD_GROUP_TO_VDW_RADIUS.to(atom_feats.device)
+    lookup = _vdw_radius_table(atom_feats.device)
     return lookup[period_idx, group_idx]
 
 
@@ -353,6 +367,12 @@ def _vdw_clash_components(
     dihedral_mask = ctx.get('dihedral_mask')
     if dihedral_mask is not None:
         pair_mask = pair_mask * (1 - dihedral_mask)
+    # Optional caller-supplied exclusion (inference guidance uses it to drop
+    # frozen-frozen receptor pairs, which carry no force but do inflate the
+    # energy and the 1/n_pairs normalisation). Unused during training.
+    exclude_mask = ctx.get('nonbonded_exclude_mask')
+    if exclude_mask is not None:
+        pair_mask = pair_mask * (1 - exclude_mask)
     pair_mask = pair_mask * (pred_dists < cutoff).float()
 
     triu_mask = torch.triu(torch.ones(N, N, device=pred_dists.device), diagonal=1)
@@ -374,7 +394,14 @@ def _vdw_clash_components(
 
 
 class VdWClashLoss(AuxiliaryLoss):
-    """Mean squared vdW penetration over nearby nonbonded pairs."""
+    """Mean squared vdW penetration over nearby nonbonded pairs.
+
+    linear_onset=True (checkpoints up to equiflex_90m): (p+1)^2 - 1 = p^2 + 2p,
+    a quadratic deep-clash ramp with slope 2 at onset so sub-A clashes are still
+    pushed apart. linear_onset=False (v6/v7 configs): pure p^2, zero gradient at
+    onset, shallow contacts left to the active-count term. Shared with inference
+    guidance, which reads the flag back from the checkpoint's LossConfig.
+    """
 
     def __init__(
         self,
@@ -382,19 +409,129 @@ class VdWClashLoss(AuxiliaryLoss):
         buffer: float = 0.10,
         cutoff: float = 6.0,
         schedule: Callable = linear_schedule,
+        linear_onset: bool = True,
     ):
         super().__init__(weight, schedule)
         self.buffer = buffer
         self.cutoff = cutoff
+        self.linear_onset = linear_onset
 
     def compute(self, ctx):
         terms = _vdw_clash_components(ctx, self.buffer, self.cutoff)
-        # (p+1)^2 - 1 = p^2 + 2p: keeps quadratic deep-clash ramp but gives a
-        # nonzero gradient (slope 2) at penetration onset, so sub-Å clashes are
-        # still pushed apart. relu => non-clashing pairs contribute exactly 0.
+        # relu in _vdw_clash_components => non-clashing pairs contribute exactly 0.
         penetration = terms['penetration']
-        clash = (penetration + 1.0) ** 2 - 1.0
+        clash = (penetration + 1.0) ** 2 - 1.0 if self.linear_onset else penetration ** 2
         return clash.sum(dim=(-1, -2)) / terms['n_pairs']
+
+
+class VdWHingeLoss(AuxiliaryLoss):
+    """Unified vdW clash term: hinge penalty on every nonbonded pair, per ligand atom.
+
+        L = [ sum_{lig-rec} h(p) + sum_{lig-lig} h(p) + rec_rec_ratio * sum_{rec-rec} h(p) ] / n_lig,
+        h(p) = (p + 1)^2 - 1 = p^2 + 2p,   p = relu((r_i + r_j)(1 - buffer) - d_ij)
+
+    Replaces the mean (sum p^2 / n_pairs) and active-count terms. Measured on
+    v7 at step 17k: the mean term averaged ligand clashes away (ligand-receptor
+    pairs are ~6% of pocket pairs; 72% of v7 poses clashed with the protein at
+    the same mean-term value as the 90M's 26%), and the active term saturated.
+    The hinge has slope 2 at onset (half the observed clashes are < 0.3 A deep),
+    per-ligand-atom normalisation keeps ligand clashes undiluted, and
+    rec_rec_ratio keeps side-chain packing in the loss at a controlled share.
+    Receptor pairs whose BOTH atoms are frozen (backbone, CB: ctx['frozen_mask'])
+    are dropped: they never move at inference, carry no gradient in training,
+    and on PoseBusters crystal poses they were the entire baseline (median 0.34
+    with them, 0.000 without; v7 poses 0.13 either way).
+    Needs ctx['n_rec']; without it every pair counts as ligand-involved.
+    """
+
+    def __init__(
+        self,
+        weight: float = 1.0,
+        buffer: float = 0.20,
+        cutoff: float = 6.0,
+        rec_rec_ratio: float = 0.15,
+        schedule: Callable = linear_schedule,
+    ):
+        super().__init__(weight, schedule)
+        self.buffer = buffer
+        self.cutoff = cutoff
+        self.rec_rec_ratio = rec_rec_ratio
+
+    def compute(self, ctx):
+        terms = _vdw_clash_components(ctx, self.buffer, self.cutoff)
+        penetration = terms['penetration']                 # [B, N, N], upper triangle, masked
+        pair_mask = terms['pair_mask']
+        clash = ((penetration + 1.0) ** 2 - 1.0) * pair_mask
+        B, N, _ = clash.shape
+        mask = ctx['mask']
+        n_rec = ctx.get('n_rec')
+        if n_rec is None or n_rec <= 0 or n_rec >= N:
+            class_w = torch.ones(N, N, device=clash.device, dtype=clash.dtype)
+            n_lig = mask.sum(dim=-1).clamp(min=1)
+        else:
+            is_lig = torch.zeros(N, device=clash.device, dtype=clash.dtype)
+            is_lig[n_rec:] = 1.0
+            rec_rec = (1 - is_lig).unsqueeze(-1) * (1 - is_lig).unsqueeze(-2)
+            class_w = 1.0 - (1.0 - self.rec_rec_ratio) * rec_rec
+            n_lig = (mask * is_lig).sum(dim=-1).clamp(min=1)
+            frozen = ctx.get('frozen_mask')
+            if frozen is not None:                                    # [B, N], 1 = backbone/CB
+                frozen = frozen.to(clash.dtype)
+                class_w = class_w * (1.0 - frozen.unsqueeze(-1) * frozen.unsqueeze(-2))
+        return (clash * class_w).sum(dim=(-1, -2)) / n_lig
+
+
+DONOR_COL, ACCEPTOR_COL = 169, 170   # pharmacophore flags in the 299-dim atom feature (featurize.py context block)
+
+
+class HBondContactLoss(AuxiliaryLoss):
+    """Native polar-contact recovery between ligand and receptor.
+
+    From the crystal x_1 take ligand-receptor donor-acceptor heavy-atom pairs
+    (donor on one side, acceptor on the other, feature columns 169/170) closer
+    than `native_cutoff`; on the unrolled x_1_pred penalise losing them:
+
+        L = (1 / n_native) * sum_{(D,A) native} huber( relu(d_pred(D,A) - native_cutoff) )
+
+    huber(e) = e^2 for e <= huber_cutoff, else huber_cutoff * (2e - huber_cutoff):
+    quadratic for contacts that are nearly kept, linear for a mis-docked ligand
+    whose contacts all sit 5-10 A away (a pure quadratic gave a loss mean 5x
+    its median on v7 poses and would out-shout the flow loss exactly there).
+    Supervised by the crystal contact set, so it only penalises breaking real
+    H-bonds and never rewards inventing new ones (no collapse risk, no guidance
+    analogue). PoseBusters crystals have median 7 such contacts (p10 2, p90 16);
+    systems with none contribute 0. Needs ctx['x_1'] and ctx['n_rec'].
+    """
+
+    def __init__(self, weight: float = 1.0, native_cutoff: float = 3.5,
+                 huber_cutoff: float = 1.0, schedule: Callable = linear_schedule):
+        super().__init__(weight, schedule)
+        self.native_cutoff = native_cutoff
+        self.huber_cutoff = huber_cutoff
+
+    def compute(self, ctx):
+        x_1_pred = ctx['x_1_pred']; x_1 = ctx.get('x_1'); n_rec = ctx.get('n_rec')
+        B, N, _ = x_1_pred.shape
+        if x_1 is None or n_rec is None or n_rec <= 0 or n_rec >= N:
+            return x_1_pred.new_zeros(B)
+        feats = ctx['atom_feats']                                  # [B or 1, N, F]
+        don, acc = feats[..., DONOR_COL], feats[..., ACCEPTOR_COL]
+        if don.shape[0] == 1 and B > 1:
+            don, acc = don.expand(B, -1), acc.expand(B, -1)
+        is_lig = torch.zeros(N, device=x_1_pred.device, dtype=x_1_pred.dtype); is_lig[n_rec:] = 1.0
+        polar = (don.unsqueeze(-1) * acc.unsqueeze(-2) + acc.unsqueeze(-1) * don.unsqueeze(-2)).clamp(max=1.0)
+        cross = (is_lig.unsqueeze(-1) * (1 - is_lig).unsqueeze(-2))   # ligand row, receptor column
+        mask = ctx['mask']
+        pair_mask = polar * cross * mask.unsqueeze(-1) * mask.unsqueeze(-2)
+        d_gt = torch.cdist(x_1, x_1)
+        native = pair_mask * (d_gt <= self.native_cutoff).to(x_1_pred.dtype)
+        d_pred = ctx['pred_dists']
+        excess = F.relu(d_pred - self.native_cutoff)
+        c = self.huber_cutoff
+        penalty = torch.where(excess <= c, excess ** 2, c * (2 * excess - c))
+        loss = (penalty * native).sum(dim=(-1, -2))
+        n_native = native.sum(dim=(-1, -2))
+        return torch.where(n_native > 0, loss / n_native.clamp(min=1), loss.new_zeros(B))
 
 
 class VdWActiveClashLoss(AuxiliaryLoss):
@@ -534,6 +671,82 @@ class TorsionLoss(AuxiliaryLoss):
         return loss  # [B]
 
 
+class ChiralAtomLoss(AuxiliaryLoss):
+    """Flat-bottom restraint on the SIGNED improper dihedral at each stereocentre.
+
+    A Cartesian generative model has nothing stopping it from emitting the mirror
+    image: torsion-space docking cannot invert a stereocentre, we can.  Every
+    parity-EVEN quantity (distances, |angles|, the planarity term in TorsionLoss)
+    is blind to this, so the restraint has to be built on a pseudoscalar.
+
+    phi is the dihedral over (n0, n1, n2, centre) where n0..n2 are the three
+    highest-CIP-rank substituents.  Its sign comes from the scalar triple product
+    b2 . (n_a x n_b), which flips under reflection -- that is the whole point.
+    R centres are required to sit at phi > +buffer, S centres at phi < -buffer;
+    the buffer keeps the restraint away from the planar phi=0 transition state
+    rather than merely on the correct side of it.
+
+    Index format [K, 6]: (batch_idx, a0, a1, a2, centre, is_r).  Same convention
+    as TorsionLoss but with the orientation flag appended.
+    """
+
+    def __init__(self, weight: float = 1.0, buffer: float = 0.5236,
+                 schedule: Callable = linear_schedule):
+        super().__init__(weight, schedule)
+        self.buffer = buffer  # 0.5236 rad = 30 deg, matching Boltz
+
+    def _signed_dihedral(self, coords, batch_idx, atom_indices):
+        p0 = coords[batch_idx, atom_indices[:, 0]]
+        p1 = coords[batch_idx, atom_indices[:, 1]]
+        p2 = coords[batch_idx, atom_indices[:, 2]]
+        p3 = coords[batch_idx, atom_indices[:, 3]]
+
+        b1, b2, b3 = p1 - p0, p2 - p1, p3 - p2
+        n1 = torch.cross(b1, b2, dim=-1)
+        n2 = torch.cross(b2, b3, dim=-1)
+        n1_norm = n1.norm(dim=-1).clamp(min=1e-8)
+        n2_norm = n2.norm(dim=-1).clamp(min=1e-8)
+        cos_angle = (n1 * n2).sum(dim=-1) / (n1_norm * n2_norm)
+        b2_hat = b2 / b2.norm(dim=-1, keepdim=True).clamp(min=1e-8)
+        sin_angle = torch.cross(n1, n2, dim=-1).mul(b2_hat).sum(dim=-1) / (n1_norm * n2_norm)
+        # atan2, not arccos: keeps the sign and has no gradient singularity at +-1
+        return torch.atan2(sin_angle, cos_angle)
+
+    def compute(self, ctx):
+        x_1_pred = ctx['x_1_pred']
+        B = x_1_pred.shape[0]
+        idx = ctx.get('lig_chiral_indices')
+        if idx is None or idx.numel() == 0:
+            return x_1_pred.new_zeros(B)
+
+        idx = idx.clone()
+        if ctx.get('n_rec') is not None:
+            idx[:, 1:5] += ctx['n_rec']
+
+        batch_idx = idx[:, 0].long()
+        atom_indices = idx[:, 1:5].long()
+        is_r = idx[:, 5].bool()
+
+        mask = ctx.get('mask')
+        if mask is not None:
+            valid = mask[batch_idx.unsqueeze(-1), atom_indices].bool().all(dim=-1)
+            if not valid.any():
+                return x_1_pred.new_zeros(B)
+            batch_idx, atom_indices, is_r = batch_idx[valid], atom_indices[valid], is_r[valid]
+
+        phi = self._signed_dihedral(x_1_pred, batch_idx, atom_indices)
+
+        # hinge: R wants phi > +buffer, S wants phi < -buffer; flat inside
+        violation = torch.where(is_r, self.buffer - phi, phi + self.buffer)
+        per_centre = violation.clamp(min=0.0)
+
+        loss = x_1_pred.new_zeros(B)
+        count = x_1_pred.new_zeros(B)
+        loss.scatter_add_(0, batch_idx, per_centre)
+        count.scatter_add_(0, batch_idx, torch.ones_like(per_centre))
+        return loss / count.clamp(min=1)
+
+
 # ============================================
 # Config and FlexLoss
 # ============================================
@@ -568,11 +781,26 @@ class LossConfig:
     vdw_max_weight: float = 0.0
     vdw_buffer: float = 0.10
     vdw_cutoff: float = 6.0   # Å — only pairs closer than this contribute
+    vdw_linear_onset: bool = True   # p^2 + 2p (legacy) vs pure p^2 mean term; see VdWClashLoss
+    # vdw_form 'mean': VdWClashLoss (sum p^2 / n_pairs, checkpoints up to v7 step 17k);
+    # 'hinge': VdWHingeLoss, per-ligand-atom hinge over all pairs with rec-rec at vdw_rec_rec_ratio
+    vdw_form: str = 'mean'
+    vdw_rec_rec_ratio: float = 0.15
+
+    # Native ligand-receptor H-bond contact recovery (HBondContactLoss)
+    hbond_weight: float = 0.0
+    hbond_native_cutoff: float = 3.5
+    hbond_huber_cutoff: float = 1.0
     vdw_active_scale: float = 0.10  # Å scale where soft active-count term saturates
     vdw_max_alpha: float = 20.0     # logsumexp sharpness for soft max penetration
 
     # Torsion/planarity
     torsion_weight: float = 1.0
+
+    # Ligand stereocentres (ChiralAtomLoss); needs chiral_atom_indices in the
+    # featurised data (scripts/backfill_chiral_indices.py for older sets)
+    chiral_weight: float = 0.0
+    chiral_buffer: float = 0.5236   # rad; 30 deg margin from the planar state
 
 
 class FlexLoss(nn.Module):
@@ -597,10 +825,15 @@ class FlexLoss(nn.Module):
                 config.bond_angle_weight, config.angle_buffer,
                 config.angle_huber_cutoff, schedule,
             )
-        if config.vdw_weight > 0:
+        if config.vdw_weight > 0 and getattr(config, 'vdw_form', 'mean') == 'hinge':
+            self.aux_losses['vdw'] = VdWHingeLoss(
+                config.vdw_weight, config.vdw_buffer, config.vdw_cutoff,
+                getattr(config, 'vdw_rec_rec_ratio', 0.15), schedule,
+            )
+        elif config.vdw_weight > 0:
             self.aux_losses['vdw'] = VdWClashLoss(
                 config.vdw_weight, config.vdw_buffer, config.vdw_cutoff,
-                schedule,
+                schedule, linear_onset=getattr(config, 'vdw_linear_onset', True),
             )
         if config.vdw_active_weight > 0:
             self.aux_losses['vdw_active'] = VdWActiveClashLoss(
@@ -612,9 +845,18 @@ class FlexLoss(nn.Module):
                 config.vdw_max_weight, config.vdw_buffer, config.vdw_cutoff,
                 config.vdw_max_alpha, schedule,
             )
+        if getattr(config, 'hbond_weight', 0.0) > 0:
+            self.aux_losses['hbond'] = HBondContactLoss(
+                config.hbond_weight, getattr(config, 'hbond_native_cutoff', 3.5),
+                getattr(config, 'hbond_huber_cutoff', 1.0), schedule,
+            )
         if config.torsion_weight > 0:
             self.aux_losses['torsion'] = TorsionLoss(
                 config.torsion_weight, schedule,
+            )
+        if getattr(config, 'chiral_weight', 0.0) > 0:
+            self.aux_losses['chiral'] = ChiralAtomLoss(
+                config.chiral_weight, config.chiral_buffer, schedule,
             )
 
     def forward(
@@ -632,6 +874,7 @@ class FlexLoss(nn.Module):
         constraint_matrix: Optional[torch.Tensor] = None,
         rec_torsion_indices: Optional[torch.Tensor] = None,
         lig_torsion_indices: Optional[torch.Tensor] = None,
+        lig_chiral_indices: Optional[torch.Tensor] = None,
         n_rec: Optional[int] = None,
         backbone_mask: Optional[torch.Tensor] = None,
         cb_mask: Optional[torch.Tensor] = None,
@@ -693,6 +936,15 @@ class FlexLoss(nn.Module):
                 rec_fixed_mask = rec_fixed_mask + cb_mask[:, :N_rec]
             rec_fixed_mask = rec_fixed_mask.clamp(max=1.0)
 
+        rec_fixed_full = None
+        if backbone_mask is not None or cb_mask is not None:
+            rec_fixed_full = mask.new_zeros(mask.shape)
+            if backbone_mask is not None:
+                rec_fixed_full = rec_fixed_full + backbone_mask
+            if cb_mask is not None:
+                rec_fixed_full = rec_fixed_full + cb_mask
+            rec_fixed_full = rec_fixed_full.clamp(max=1.0)
+
         unrolled = unroll_to_x1(
             model, batch, t, rec_x_t, lig_x_t, effective_unrolls,
             q_chem=q_chem, p_chem=p_chem,
@@ -712,6 +964,21 @@ class FlexLoss(nn.Module):
         if bond_mask_mat.shape[0] == 1 and mask.shape[0] > 1:
             bond_mask_mat = bond_mask_mat.expand(mask.shape[0], -1, -1)
         bond_mask_mat = bond_mask_mat * atom_pair_mask
+
+        # Covalent ligand-receptor links (N-glycans, covalent inhibitors, PLP adducts: 12%
+        # of PLINDER training systems have a ligand heavy atom < 1.8 A from the receptor).
+        # The block-diagonal bond features do not know them, so without this the vdW terms
+        # see a ~1.2 A "clash" in the crystal pose and the H-bond term a fake contact.
+        # Treat crystal cross-interface pairs < 1.8 A as bonds; the 1-3 / 1-4 exclusions
+        # below then propagate across the link.
+        if x_1 is not None and n_rec is not None and 0 < n_rec < N:
+            with torch.no_grad():
+                cross = torch.cdist(x_1[:, :n_rec], x_1[:, n_rec:]) < 1.8          # [B, n_rec, n_lig]
+            if cross.any():
+                link = torch.zeros_like(bond_mask_mat)
+                link[:, :n_rec, n_rec:] = cross.to(link.dtype)
+                link[:, n_rec:, :n_rec] = cross.transpose(1, 2).to(link.dtype)
+                bond_mask_mat = (bond_mask_mat + link * atom_pair_mask).clamp(max=1.0)
 
         eye = torch.eye(N, device=bond_mask_mat.device)
         bond_mask_13 = torch.bmm(bond_mask_mat, bond_mask_mat).clamp(max=1.0)
@@ -736,7 +1003,10 @@ class FlexLoss(nn.Module):
             'constraint_matrix': constraint_matrix,
             'rec_torsion_indices': rec_torsion_indices,
             'lig_torsion_indices': lig_torsion_indices,
+            'lig_chiral_indices': lig_chiral_indices,
             'n_rec': n_rec,
+            'frozen_mask': rec_fixed_full,
+            'x_1': x_1,
         }
 
         # All aux losses depend on x_1_pred -> unroll graph -> physics_group.

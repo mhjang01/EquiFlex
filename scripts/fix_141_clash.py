@@ -14,9 +14,6 @@ For each flagged system:
 Skips ligand_features.pt and unimol_embeddings.pt (ligand unchanged).
 After repair, re-adds systems to splits.csv from splits.csv.bak.
 """
-import sys
-sys.path.insert(0, '/home/mhjang/workspace/flex')
-
 import argparse
 import shutil
 from pathlib import Path
@@ -173,9 +170,9 @@ def restore_splits_for_fixed(splits_path: Path, fixed_ids: dict):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--report', default='nan_scan_report.txt')
-    ap.add_argument('--data', default='./data_v2_plinder')
+    ap.add_argument('--data', required=True, help='featurised data root (one system directory per system)')
     ap.add_argument('--threshold', type=float, default=0.1)
-    ap.add_argument('--splits', default='data_v2_plinder/splits.csv')
+    ap.add_argument('--splits', required=True, help='splits.csv to restore repaired systems into')
     ap.add_argument('--no-restore-splits', action='store_true',
                     help='Skip adding repaired systems back to splits.csv')
     ap.add_argument('--limit', type=int, default=None)

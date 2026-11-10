@@ -198,7 +198,7 @@ def main() -> None:
     sampler = FlowMatchingSampler(trainer.model, device=args.device)
     batch = sampler._build_batch(data, 1)
     batch = {k: v.to(args.device) for k, v in batch.items()}
-    rec_coords, lig_coords = sampler._init_coords(data, 1, [sample_seed])
+    rec_coords, lig_coords, _ = sampler._init_coords(data, 1, [sample_seed])
     rec_fixed_mask_3d = (
         batch["rec_backbone_mask"].unsqueeze(-1) + batch["rec_cb_mask"].unsqueeze(-1)
     ).clamp(max=1.0)

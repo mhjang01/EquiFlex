@@ -15,16 +15,19 @@ import json
 from datetime import datetime
 from joblib import Parallel, delayed
 from tqdm import tqdm
+from equiflex.prep.validation import validate_cached_unimol
 
 
 def _load_system(system_dir: Path):
     """Read all 4 feature/embedding tensors for one system."""
-    return {
+    entry = {
         'ligand_feats': torch.load(system_dir / 'ligand_features.pt', weights_only=False),
         'pocket_feats': torch.load(system_dir / 'pocket_features.pt', weights_only=False),
         'esm_emb': torch.load(system_dir / 'esm3_embeddings.pt', weights_only=False),
         'unimol_emb': torch.load(system_dir / 'unimol_embeddings.pt', weights_only=False),
     }
+    validate_cached_unimol(system_dir, entry['ligand_feats'], entry['unimol_emb'])
+    return entry
 
 
 class FlexDataset(Dataset):
@@ -82,10 +85,11 @@ class FlexDataset(Dataset):
             unimol_emb = entry['unimol_emb']
         else:
             system_dir = self.system_dirs[idx]
-            ligand_feats = torch.load(system_dir / 'ligand_features.pt', weights_only=False)
-            pocket_feats = torch.load(system_dir / 'pocket_features.pt', weights_only=False)
-            esm_emb = torch.load(system_dir / 'esm3_embeddings.pt', weights_only=False)
-            unimol_emb = torch.load(system_dir / 'unimol_embeddings.pt', weights_only=False)
+            entry = _load_system(system_dir)
+            ligand_feats = entry['ligand_feats']
+            pocket_feats = entry['pocket_feats']
+            esm_emb = entry['esm_emb']
+            unimol_emb = entry['unimol_emb']
 
         # Backbone mask: 1 = backbone (fixed), 0 = sidechain (flexible)
         # Precomputed in pocket_features.pt during featurization
@@ -102,6 +106,14 @@ class FlexDataset(Dataset):
                 lig_torsion_indices = torch.from_numpy(lig_torsion_indices).long()
         else:
             lig_torsion_indices = torch.empty((0, 4), dtype=torch.long)
+
+        # Ligand stereocentres [K, 5] (a0, a1, a2, centre, is_r); absent in
+        # featurisations older than ChiralAtomLoss (scripts/backfill_chiral_indices.py).
+        lig_chiral_indices = ligand_feats.get('chiral_atom_indices', None)
+        if lig_chiral_indices is not None:
+            lig_chiral_indices = torch.as_tensor(lig_chiral_indices, dtype=torch.long).reshape(-1, 5)
+        else:
+            lig_chiral_indices = torch.empty((0, 5), dtype=torch.long)
 
         rec_torsion_indices = pocket_feats.get('sp2_torsion_indices', pocket_feats.get('torsion_indices', None))
         if rec_torsion_indices is not None:
@@ -172,10 +184,12 @@ class FlexDataset(Dataset):
             'lig_bond_feats': ligand_feats['bond_features'],  # [N_lig, N_lig, 26]
             'lig_uid_vec': ligand_feats['ligand_uid_vec'],  # [N_lig]
             'lig_torsion_indices': lig_torsion_indices,  # [M_lig, 4]
+            'lig_chiral_indices': lig_chiral_indices,  # [K_lig, 5]
             'unimol_embeddings': unimol_emb,  # [N_lig, 1536]
 
             # Metadata
             'system_idx': idx,
+            'system_id': self.system_dirs[idx].name,
         }
 
 
@@ -300,6 +314,7 @@ def collate_single_system(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, tor
 
         # Batch size for trainer to derive B
         'batch_size': B,
+        'system_ids': [item.get('system_id', str(item.get('system_idx', '?')))],
     }
 
     # Per-residue backbone atom indices (system-level, no batch expansion)
@@ -327,6 +342,13 @@ def collate_single_system(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, tor
         result['lig_torsion_indices'] = torch.cat(all_lig_torsions, dim=0)
     else:
         result['lig_torsion_indices'] = torch.empty((0, 5), dtype=torch.long)
+
+    lig_chirals = item['lig_chiral_indices']
+    if lig_chirals.numel() > 0:
+        batch_col = torch.arange(B, dtype=torch.long).repeat_interleave(lig_chirals.shape[0]).unsqueeze(1)
+        result['lig_chiral_indices'] = torch.cat([batch_col, lig_chirals.repeat(B, 1)], dim=1)
+    else:
+        result['lig_chiral_indices'] = torch.empty((0, 6), dtype=torch.long)
 
     return result
 
@@ -403,6 +425,7 @@ def collate_padded_systems(
     lig_atom_mask_system = []
     all_rec_torsions = []
     all_lig_torsions = []
+    all_lig_chirals = []
 
     for sys_i, item in enumerate(batch):
         n_rec = item['rec_atom_feats'].shape[0]
@@ -461,6 +484,12 @@ def collate_padded_systems(
                 batch_col = torch.full((lig_torsions.shape[0], 1), sys_i * T + t_i, dtype=torch.long)
                 all_lig_torsions.append(torch.cat([batch_col, lig_torsions], dim=1))
 
+        lig_chirals = item['lig_chiral_indices']
+        if lig_chirals.numel() > 0:
+            for t_i in range(T):
+                batch_col = torch.full((lig_chirals.shape[0], 1), sys_i * T + t_i, dtype=torch.long)
+                all_lig_chirals.append(torch.cat([batch_col, lig_chirals], dim=1))
+
     rec_atom_mask_system = torch.stack(rec_atom_mask_system, dim=0)
     lig_atom_mask_system = torch.stack(lig_atom_mask_system, dim=0)
 
@@ -504,6 +533,10 @@ def collate_padded_systems(
         'lig_torsion_indices': (
             torch.cat(all_lig_torsions, dim=0) if all_lig_torsions
             else torch.empty((0, 5), dtype=torch.long)
+        ),
+        'lig_chiral_indices': (
+            torch.cat(all_lig_chirals, dim=0) if all_lig_chirals
+            else torch.empty((0, 6), dtype=torch.long)
         ),
     }
 

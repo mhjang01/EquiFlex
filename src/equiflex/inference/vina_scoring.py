@@ -4,6 +4,13 @@ Reproduces the intermolecular affinity reported by ``gnina --score_only``
 (``smina`` lineage) without the external binary. Used to re-score / rank
 generated protein-ligand poses.
 
+The torch port and the real AutoDock Vina binary do not agree pose-for-pose:
+hydrogen placement (RDKit vs Open Babel) and nitrogen acceptor typing differ.
+Benchmark pose selection therefore uses the binary via :func:`vina_binary_score`
+(``vina --score_only`` on Open Babel pdbqt files, see ``scripts/vina_rescore.py``);
+the torch port serves guidance-free relative ranking and the ``summary.md``
+written by ``run_inference.py``.
+
 The reported Vina affinity is
 
     affinity = E_inter / (1 + 0.05846 * num_rot)
@@ -26,6 +33,10 @@ and hydrogen placement first.
 
 from __future__ import annotations
 
+import re
+import shutil
+import subprocess
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Union
@@ -342,7 +353,10 @@ def count_rotatable_bonds(mol: Chem.Mol) -> int:
     )
 
 
-def count_active_torsions(ligand_path: Union[str, Path]) -> Optional[int]:
+def count_active_torsions(
+    ligand_path: Union[str, Path],
+    obabel: Union[str, Path] = "obabel",
+) -> Optional[int]:
     """gnina-exact ``num_tors``: active torsions in OpenBabel's pdbqt tree.
 
     Returns the number of ``BRANCH`` records OpenBabel emits when converting
@@ -350,13 +364,10 @@ def count_active_torsions(ligand_path: Union[str, Path]) -> Optional[int]:
     feed to the conf-independent normalization. Returns ``None`` if the
     ``obabel`` binary is unavailable.
     """
-    import shutil
-    import subprocess
-
-    if shutil.which("obabel") is None:
+    if shutil.which(str(obabel)) is None:
         return None
     proc = subprocess.run(
-        ["obabel", str(ligand_path), "-opdbqt"],
+        [str(obabel), str(ligand_path), "-opdbqt"],
         capture_output=True,
         text=True,
     )
@@ -429,11 +440,123 @@ def score_mols(
 ) -> Dict[str, float]:
     """Score a pose from pre-built, H-added RDKit mols (production path).
 
-    Use with the protonated pocket mol from
-    :func:`inference.relaxation._build_pocket_mol` and the ligand mol.
+    Use with a protonated pocket mol and the ligand mol.
     """
     if num_rot is None:
         num_rot = count_rotatable_bonds(lig_mol)
     rec = assign_xs_types(rec_mol, device=device)
     lig = assign_xs_types(lig_mol, device=device)
     return vina_score(rec, lig, num_rot=num_rot, scoring=scoring)
+
+
+# --------------------------------------------------------------------------- #
+# Real AutoDock Vina binary (``--score_only``)
+# --------------------------------------------------------------------------- #
+_VINA_AFFINITY = re.compile(r"Affinity:\s*(-?\d+\.?\d*)")
+
+
+def extract_protein_pdb(
+    complex_path: Union[str, Path],
+    out_pdb: Union[str, Path],
+    setup_entities: bool = False,
+) -> bool:
+    """Write the amino-acid residues of a predicted ``complex.cif`` as PDB.
+
+    The receptor is rebuilt from the pose's own complex file, so the sampled
+    side chains — not the input receptor — are what gets scored. Returns
+    ``False`` if the file holds no protein residues. *setup_entities* runs
+    gemmi's entity assignment first (adds ``TER`` records), as the PoseBusters
+    evaluator does; the Vina path leaves it off.
+    """
+    import gemmi
+
+    source = gemmi.read_structure(str(complex_path))
+    protein = gemmi.Structure()
+    protein.name = source.name
+    protein.add_model(gemmi.Model("1"))
+    for source_chain in source[0]:
+        chain = gemmi.Chain(source_chain.name)
+        for residue in source_chain:
+            info = gemmi.find_tabulated_residue(residue.name)
+            if info and info.is_amino_acid():
+                chain.add_residue(residue)
+        if len(chain):
+            protein[0].add_chain(chain)
+    if not len(protein[0]):
+        return False
+    if setup_entities:
+        protein.setup_entities()
+    protein.write_pdb(str(out_pdb))
+    return True
+
+
+def vina_binary_score(
+    protein_pdb: Union[str, Path],
+    ligand_sdf: Union[str, Path],
+    vina: Union[str, Path] = "vina",
+    obabel: Union[str, Path] = "obabel",
+    timeout: float = 300.0,
+) -> Dict[str, Optional[object]]:
+    """Affinity from the real AutoDock Vina binary in ``--score_only`` mode.
+
+    Both molecules are protonated and converted to pdbqt by Open Babel
+    (receptor with ``-xr`` so it carries no torsion tree; ``ROOT``/``BRANCH``
+    records Open Babel still emits are stripped because Vina rejects a rigid
+    receptor that has them). Returns ``{"affinity": float | None, "error":
+    str | None}`` — ``affinity`` is the kcal/mol value on Vina's ``Affinity:``
+    line, ``None`` with a reason if any stage failed.
+    """
+    result: Dict[str, Optional[object]] = {"affinity": None, "error": None}
+    for name, exe in (("vina", vina), ("obabel", obabel)):
+        if shutil.which(str(exe)) is None:
+            result["error"] = f"{name} binary not found: {exe}"
+            return result
+    try:
+        with tempfile.TemporaryDirectory(prefix="vina_score_") as tmp:
+            tmp = Path(tmp)
+            raw_pdbqt, rec_pdbqt, lig_pdbqt = tmp / "raw.pdbqt", tmp / "rec.pdbqt", tmp / "lig.pdbqt"
+            subprocess.run([str(obabel), str(protein_pdb), "-O", str(raw_pdbqt), "-xr", "-h"],
+                           capture_output=True, timeout=timeout)
+            if not raw_pdbqt.exists():
+                result["error"] = "obabel receptor conversion failed"
+                return result
+            rec_pdbqt.write_text("\n".join(
+                line for line in raw_pdbqt.read_text().splitlines()
+                if line.startswith(("ATOM", "HETATM", "TER", "END"))
+            ) + "\n")
+            subprocess.run([str(obabel), str(ligand_sdf), "-O", str(lig_pdbqt), "-h"],
+                           capture_output=True, timeout=timeout)
+            if not lig_pdbqt.exists():
+                result["error"] = "obabel ligand conversion failed"
+                return result
+            proc = subprocess.run(
+                [str(vina), "--receptor", str(rec_pdbqt), "--ligand", str(lig_pdbqt), "--score_only"],
+                capture_output=True, text=True, timeout=timeout,
+            )
+            match = _VINA_AFFINITY.search(proc.stdout)
+            if match is None:
+                result["error"] = (proc.stderr or proc.stdout)[-200:] or "no Affinity line in vina output"
+                return result
+            result["affinity"] = float(match.group(1))
+    except subprocess.TimeoutExpired:
+        result["error"] = "timeout"
+    return result
+
+
+def vina_binary_score_pose(
+    complex_path: Union[str, Path],
+    ligand_sdf: Union[str, Path],
+    vina: Union[str, Path] = "vina",
+    obabel: Union[str, Path] = "obabel",
+    timeout: float = 300.0,
+) -> Dict[str, Optional[object]]:
+    """:func:`vina_binary_score` for one ``sample_<i>/`` output of ``run_inference.py``.
+
+    The receptor is the protein part of *complex_path* (the sampled pocket
+    side chains plus the untouched remainder of the input receptor).
+    """
+    with tempfile.TemporaryDirectory(prefix="vina_pose_") as tmp:
+        protein_pdb = Path(tmp) / "protein.pdb"
+        if not extract_protein_pdb(complex_path, protein_pdb):
+            return {"affinity": None, "error": "no protein residues in complex"}
+        return vina_binary_score(protein_pdb, ligand_sdf, vina=vina, obabel=obabel, timeout=timeout)

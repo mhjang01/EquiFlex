@@ -7,7 +7,7 @@ from pathlib import Path
 
 import torch
 import pytorch_lightning as pl
-from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.loggers import CSVLogger, WandbLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor, ModelSummary
 from pytorch_lightning.plugins.environments import SLURMEnvironment
 
@@ -30,7 +30,7 @@ torch.serialization.add_safe_globals([
 
 def main():
     parser = argparse.ArgumentParser(description='Train Flex model')
-    parser.add_argument('--config', type=str, default='configs/base.yaml',
+    parser.add_argument('--config', type=str, default='configs/v10_512.yaml',
                         help='Path to config file')
     parser.add_argument('--resume', type=str, default=None,
                         help='Path to checkpoint to resume from')
@@ -94,6 +94,16 @@ def main():
     except (FileNotFoundError, ValueError) as e:
         print(f'Could not create test dataloader: {e}')
 
+    # PoseBusters benchmark: losses (pb/*_loss) and RMSD (pb_rmsd/*) at every validation
+    pb_loader = None
+    pb_data_dir = getattr(config.data, 'pb_data_dir', None)
+    if pb_data_dir is not None:
+        pb_loader = get_test_dataloader(
+            test_data_dir=pb_data_dir,
+            batch_size=config.data.batch_size,
+            num_workers=config.data.num_workers,
+        )
+
     print(f'Training with config: {args.config}')
     print(f'Train systems: {len(train_loader.dataset)}')
     print(f'Val systems: {len(val_loader.dataset)}')
@@ -101,26 +111,45 @@ def main():
         print(f'Test systems: {len(test_loader.dataset)}')
     print(f'Batch size: {config.data.batch_size}')
     print(f'Optimizer: {config.optimizer.optimizer_type}')
+    lo = config.loss
+    print(f'Physics: warmup {config.training.phys_loss_warmup_steps} steps, unrolls {lo.num_unrolls}, '
+          f'weights bond {lo.bond_length_weight}/{lo.bond_angle_weight} vdw {lo.vdw_weight}/{lo.vdw_active_weight}/'
+          f'{lo.vdw_max_weight} form {getattr(lo, "vdw_form", "mean")} buffer {lo.vdw_buffer} rr {getattr(lo, "vdw_rec_rec_ratio", "-")} '
+          f'hbond {getattr(lo, "hbond_weight", 0)}@{getattr(lo, "hbond_native_cutoff", 3.5)} torsion {lo.torsion_weight} chiral {getattr(lo, "chiral_weight", 0)}')
     print(f'Precision: {config.training.precision}')
     print(f'Seed: {config.training.seed}')
 
     # Create model (before logger so wandb.watch can reference it)
     trainer_module = FlexTrainer(config)
     trainer_module.test_dataloader_ref = test_loader
+    trainer_module.pb_dataloader_ref = pb_loader
     print('Loaded FlexTrainer')
 
     # Callbacks
     callbacks = []
     checkpoint_callback = ModelCheckpoint(
         dirpath=f'{config.logging.checkpoint_dir}/{config.logging.wandb_run_name or "flex"}',
-        filename='{step}-{val/total_loss:.4f}',
+        filename='{step}-{val/flow_loss:.4f}',
         save_top_k=config.logging.save_top_k,
-        monitor='val/total_loss',
+        # val/flow_loss, not val/total_loss: the total includes the physics terms,
+        # so changing their weights mid-run re-scales it and every later value
+        # would rank below the stored best-k, silently stopping all saves.
+        monitor='val/flow_loss',
         mode='min',
         save_last=True,
+        enable_version_counter=False,  # overwrite last.ckpt instead of writing last-v1.ckpt
         every_n_train_steps=config.logging.checkpoint_every_n_steps,
     )
     callbacks.append(checkpoint_callback)
+    # Unconditional snapshots (no monitor, keep all) for offline evaluation and rollback.
+    callbacks.append(ModelCheckpoint(
+        dirpath=checkpoint_callback.dirpath,
+        filename='periodic-{step}',
+        monitor=None,
+        save_top_k=-1,
+        save_last=False,
+        every_n_train_steps=5000,
+    ))
 
     lr_monitor = LearningRateMonitor(logging_interval='step')
     callbacks.append(lr_monitor)
@@ -163,9 +192,12 @@ def main():
             print(f'Auto-resuming wandb run: {wandb_run_id}')
 
     if ckpt_path is None:
-        last_ckpt = ckpt_dir / 'last.ckpt'
-        if last_ckpt.exists():
-            ckpt_path = str(last_ckpt)
+        # Newest of last*.ckpt: Lightning writes last-v1.ckpt, last-v2.ckpt ... when
+        # the checkpoint callback's state key changed across a resume, leaving the
+        # unversioned last.ckpt stale.
+        last_ckpts = sorted(ckpt_dir.glob('last*.ckpt'), key=lambda p: p.stat().st_mtime)
+        if last_ckpts:
+            ckpt_path = str(last_ckpts[-1])
             if is_main_process:
                 print(f'Auto-resuming from: {ckpt_path}')
 
@@ -177,8 +209,15 @@ def main():
         ckpt_dir.mkdir(parents=True, exist_ok=True)
         run_id_file.write_text(wandb_run_id)
 
-    # Logger
+    # Logger: wandb, or a CSV file when the cluster has no outbound network.
+    # The CSV logger deletes an existing metrics.csv in its directory, so each
+    # (re)launch gets its own version directory under logs/<run>/ and nothing
+    # from before a resume is lost.
     logger = None
+    if not config.logging.use_wandb and is_main_process:
+        launch = datetime.now().strftime('%Y%m%d_%H%M%S')
+        logger = CSVLogger(save_dir='logs', name=run_name, version=f'{wandb_run_id}_launch{launch}')
+        print(f'CSV metrics: {logger.log_dir}/metrics.csv')
     if config.logging.use_wandb and is_main_process:
         logger = WandbLogger(
             project=config.logging.wandb_project,
@@ -213,7 +252,8 @@ def main():
         precision=config.training.precision,
         val_check_interval=config.training.val_check_interval,
         check_val_every_n_epoch=None,
-        log_every_n_steps=1,
+        # One logger row per optimizer step: Lightning counts microbatches here.
+        log_every_n_steps=config.training.accumulate_grad_batches,
         callbacks=callbacks,
         logger=logger,
         enable_progress_bar=is_main_process,

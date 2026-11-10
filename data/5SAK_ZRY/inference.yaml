@@ -1,35 +1,52 @@
-# Example inference config — PoseBusters system 5SAK_ZRY.
-# Run from the repo root:
-#     python scripts/run_inference.py --config data/5SAK_ZRY/inference.yaml
-#
-# Precomputed features ship under data/5SAK_ZRY/system_data/, so featurization
-# (ESM3 + UniMol) is skipped. To prep your own system, drop the protein PDB and
-# ligand SMILES below and delete system_data/ — run_inference will featurize it.
-checkpoint: weights/equiflex_90m.ckpt
+checkpoint: weights/weights.ckpt
 output_root: data
 num_samples: 10
-num_steps: 50
+num_steps: 20
 schedule: uniform
 seed: 42
 device: cuda
-relax: false
+score_summary: true
+force_prepare: false
 guidance:
-  enabled: false
+  enabled: true
+  t_start: 0.0
+  scale: 100.0
+  schedule: linear_decay
+  bond_coef: 1.0
+  angle_coef: 1.0
+  vdw_coef: 5.0
+  vdw_active_coef: 1.0
+  vdw_max_coef: 0.0
+  torsion_coef: 0.25
+  chiral_coef: 1.0
+  chiral_buffer: 0.5236
+  grad_clip: 10.0
 sde:
   enabled: false
+  sigma: 0.1
+  eps_w: 0.01
+  w_cutoff: 0.85
+  mode: both
+pocket_provenance:
+  cutoff: 5.0
+  selector: equiflex.prep.parse.get_pocket_residues
+  reference: deposited {ID}_ligand.sdf
+  generated_by: scripts/select_pocket.py
 systems:
   5SAK_ZRY:
     output_dir: data/5SAK_ZRY
     protein:
       path: data/5SAK_ZRY/inputs/5SAK_ZRY_protein.pdb
-      # Pocket residues, per chain (author numbering).
       residues:
         A:
         - 35
+        - 37
+        - 38
         - 79
         - 80
         - 81
         - 83
+        - 116
         - 125
         - 219
         - 221

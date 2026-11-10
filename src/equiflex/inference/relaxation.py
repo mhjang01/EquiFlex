@@ -1,14 +1,15 @@
 """
-MMFF-based energy minimization for sampled protein-ligand complexes.
+Structure writers for sampled protein-ligand complexes.
 
-Pocket mols are built from amino-acid SDF templates (prep/.refs/),
-ligand mols from stored atom/bond data (ligands.pkl).
-Backbone atoms are fixed; sidechains and ligand atoms relax.
-Uses RDKit MMFF94s with UFF fallback.
+Pocket/protein models are built with gemmi from amino-acid SDF templates
+(prep/.refs/) or an mmCIF/PDB source; ligand mols from stored atom/bond
+data (ligands.pkl). Emits mmCIF complexes, protein PDBs, ligand SDFs and
+trajectory CIFs, plus RMSD helpers over them.
 
 Dependencies: torch, numpy, gemmi, rdkit, joblib
 """
 
+import functools
 import torch
 import numpy as np
 import logging
@@ -193,21 +194,133 @@ def _build_pocket_gemmi(
     return st
 
 
+def _read_structure_sanitised(path_str: str) -> 'gemmi.Structure':
+    """``gemmi.read_structure`` with junk PDB segIDs stripped first.
+
+    Columns 67-76 of a PDB ATOM record are the segment identifier, and gemmi
+    folds the segment into residue identity.  Five DEKOIS2.0 receptors (ache,
+    adrb2, cdk2, fgfr1, pparg) carry a per-atom *partial charge* in that field
+    instead -- a different value for every atom:
+
+        ATOM   1148  N   TRP A 105   -8.966  15.224  57.388  1.00 57.53   .346 N
+                                                                          ^^^^ cols 67-76
+
+    So every atom becomes its own single-atom residue (adrb2: 4352 residues for
+    7134 atoms).  ``remove_alternative_conformations()`` then sees a run of
+    residues sharing seqid and name, treats them as alternates of one residue
+    and keeps only the first -- collapsing adrb2 to 439 residues of 1 atom each,
+    all named ``N``.  Both ``write_complex_cif`` and ``write_protein_pdb`` go
+    through this template, so the predicted complex and the receptor handed to
+    smina were destroyed together, silently.
+
+    Blank the field before parsing, but only where it looks like a number: a
+    real segID is an alphanumeric label, so requiring a '.' leaves genuine
+    multi-segment files alone.
+    """
+    import gemmi
+
+    path = Path(path_str)
+    if path.suffix.lower() not in ('.pdb', '.ent'):
+        return gemmi.read_structure(path_str)
+
+    text = path.read_text()
+    lines = text.splitlines(keepends=True)
+    n_fixed = 0
+    for i, line in enumerate(lines):
+        if not line.startswith(('ATOM  ', 'HETATM')) or len(line) < 76:
+            continue
+        seg = line[66:76]
+        if seg.strip() and '.' in seg:
+            lines[i] = line[:66] + ' ' * 10 + line[76:]
+            n_fixed += 1
+    if not n_fixed:
+        return gemmi.read_structure(path_str)
+
+    logger.warning(
+        'receptor %s: stripped a numeric per-atom value from PDB segID columns '
+        '67-76 on %d atoms; left in place it shatters every residue',
+        path.name, n_fixed,
+    )
+    st = gemmi.read_pdb_string(''.join(lines))
+    st.setup_entities()
+    return st
+
+
+@functools.lru_cache(maxsize=8)
+def _protein_template(path_str: str, mtime: float, size: int) -> 'gemmi.Structure':
+    """Amino-acid-only copy of *path_str*, cached on (path, mtime, size).
+
+    Do not carry crystallographic HETATMs into the predicted complex.  In
+    particular, retaining the bound reference ligand would create an invalid
+    overlay containing both the reference and predicted ligand.  Use Gemmi's
+    residue classification rather than het_flag alone because mmCIF producers
+    are not consistent about that flag.
+
+    Callers must ``.clone()`` before mutating: the cached object is shared.
+    """
+    import gemmi
+
+    source_st = _read_structure_sanitised(path_str)
+    # Keep one conformer per atom.  prep.parse already drops altlocs when
+    # featurising (ExcludeFlags.altloc), so without this the written receptor
+    # disagrees with what the model was conditioned on: the residue arrives with
+    # both conformers merged (MET363 in 5TGZ becomes a 16-atom methionine),
+    # which Vina scores twice and RDKit refuses to sanitise — silently dropping
+    # the whole residue from the torch scorer.
+    source_st.remove_alternative_conformations()
+    st = gemmi.Structure()
+    st.name = source_st.name
+    st.cell = source_st.cell
+    st.spacegroup_hm = source_st.spacegroup_hm
+    model = gemmi.Model('1')
+    for source_chain in source_st[0]:
+        chain = gemmi.Chain(source_chain.name)
+        for residue in source_chain:
+            residue_info = gemmi.find_tabulated_residue(residue.name)
+            if residue_info and residue_info.is_amino_acid():
+                chain.add_residue(residue)
+        if len(chain) > 0:
+            model.add_chain(chain)
+    st.add_model(model)
+
+    # A shattered residue set is indistinguishable from a healthy one
+    # downstream -- it just writes a receptor with most atoms missing -- so fail
+    # loudly here instead.  Real amino acids average ~8 heavy / ~16 all-atom;
+    # anything under 3 means residue grouping broke.
+    n_res = sum(len(ch) for ch in st[0])
+    n_atoms = sum(len(r) for ch in st[0] for r in ch)
+    if n_res and n_atoms / n_res < 3.0:
+        raise ValueError(
+            f'{path_str}: residue grouping is broken -- {n_atoms} atoms in '
+            f'{n_res} amino-acid residues ({n_atoms / n_res:.2f} per residue). '
+            'Expected >= 3. Check the PDB segID columns (67-76).'
+        )
+    return st
+
+
 def _build_full_protein_gemmi(
     protein_path: Union[str, Path],
     pocket_feats: Dict,
     rec_coords: torch.Tensor,
     backbone_com: torch.Tensor,
 ) -> 'gemmi.Structure':
-    """Load full protein and overlay predicted pocket residue coordinates.
+    """Load protein-only coordinates and overlay predicted pocket residues.
 
     Non-pocket residues keep their original crystallographic positions.
     Pocket residues are updated with the sampler-predicted coords.
+    Waters, ligands, ions, cofactors, and all other non-amino-acid residues are
+    removed before the predicted ligand is added.  This matches the protein-only
+    conditioning structure used by the PoseBusters validation path.
     """
     import gemmi
 
     protein_path = Path(protein_path)
-    st = gemmi.read_structure(str(protein_path))
+    stat = protein_path.stat()
+    # The amino-acid-only structure depends on nothing but the file, while this
+    # function is called once per sampled pose (millions of times in a screen).
+    # Parse it once per file and clone; cloning 3.5k atoms is far cheaper than
+    # re-parsing the mmCIF, and the clone keeps each pose's overlay independent.
+    st = _protein_template(str(protein_path), stat.st_mtime, stat.st_size).clone()
     model = st[0]
 
     residue_keys = pocket_feats['residue_keys']
@@ -234,9 +347,23 @@ def _build_full_protein_gemmi(
             'so full-protein CIF overlay uses PDB/mmCIF residue numbers. '
             'Otherwise only residues where ordinal index == author number match.',
         )
+    # NCS assemblies can contain chains whose names differ only by case
+    # (author chains 'A' and 'a').  Uppercasing chain ids then collapses both
+    # onto one pocket entry, so a single predicted side chain is overlaid on
+    # every case-variant chain and those residues end up at identical
+    # coordinates — which later breaks any step that adds hydrogens
+    # (zero-length bond vector).  Match case-sensitively when such a collision
+    # exists; otherwise keep the lenient uppercase match, so systems without
+    # case-paired chains behave exactly as before.
+    model_chain_names = [chain.name for chain in model]
+    case_sensitive = len({c.upper() for c in model_chain_names}) != len(set(model_chain_names))
+
+    def _norm_cid(cid: str) -> str:
+        return str(cid) if case_sensitive else str(cid).upper()
+
     if not raw_overlay or len(raw_overlay) != len(residue_keys):
         overlay_keys = [
-            (str(cid).upper(), str(rn).upper(), int(rnum), '')
+            (str(cid), str(rn).upper(), int(rnum), '')
             for (cid, rn, rnum, _eid) in residue_keys
         ]
     else:
@@ -246,11 +373,12 @@ def _build_full_protein_gemmi(
     atom_offset = 0
     for res_idx, (chain_id, resname, struct_num, icode) in enumerate(overlay_keys):
         n_atoms = n_atoms_per_residue[res_idx]
-        pocket_lookup[(chain_id, resname, int(struct_num), icode)] = (atom_offset, res_idx)
+        pocket_lookup[(_norm_cid(chain_id), str(resname).upper(),
+                       int(struct_num), icode or '')] = (atom_offset, res_idx)
         atom_offset += n_atoms
 
     for chain in model:
-        cid = chain.name.upper()
+        cid = _norm_cid(chain.name)
         for residue in chain:
             ricode = residue.seqid.icode.strip() if residue.seqid.icode else ''
             key = (cid, residue.name.upper(), residue.seqid.num, ricode)
@@ -490,6 +618,39 @@ def write_complex_cif(
     block = doc.sole_block()
     _append_chem_comp_bonds_to_mmcif_block(block, ligand_mols, lig_atom_names)
     doc.write_file(str(output_path))
+    return output_path
+
+
+def write_protein_pdb(
+    pocket_feats: Dict,
+    rec_coords: torch.Tensor,
+    backbone_com: torch.Tensor,
+    output_path: Union[str, Path],
+    protein_path: Optional[Union[str, Path]] = None,
+) -> Path:
+    """Write the sampled receptor alone as PDB — the file Vina actually needs.
+
+    Equivalent to ``write_complex_cif`` followed by
+    ``inference.vina_scoring.extract_protein_pdb``, without the mmCIF round
+    trip: scoring a pose only needs the receptor, and re-reading a 400 kB
+    complex just to pull the protein back out costs more than writing it once.
+    Pocket residues carry *rec_coords*; the rest stay crystallographic.
+
+    Trimming this to a shell around the ligand reproduces the score exactly
+    (Vina's terms vanish beyond 8 A) but measured slower: the cost here is
+    per-file latency on the shared filesystem, not the byte count.
+    """
+    import gemmi
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if protein_path is not None and Path(protein_path).exists():
+        st = _build_full_protein_gemmi(protein_path, pocket_feats, rec_coords, backbone_com)
+    else:
+        st = _build_pocket_gemmi(pocket_feats, rec_coords, backbone_com)
+
+    st.write_pdb(str(output_path))
     return output_path
 
 
@@ -911,10 +1072,8 @@ def write_ligand_sdf(
 
 
 # ---------------------------------------------------------------------------
-# Pocket mol from SDF templates  (for MMFF relaxation)
+# Bond type lookup
 # ---------------------------------------------------------------------------
-
-_REFS_DIR = Path(__file__).parent.parent / 'prep' / '.refs'
 
 _BOND_TYPE_STR = {
     'SINGLE': None,   # filled at first import
@@ -935,388 +1094,3 @@ def _bond_type_from_str(s: str):
             'AROMATIC': Chem.BondType.AROMATIC,
         })
     return _BOND_TYPE_STR.get(s, _BOND_TYPE_STR['SINGLE'])
-
-
-def _build_pocket_mol(
-    pocket_feats: Dict,
-    coords: torch.Tensor,
-    backbone_com: torch.Tensor,
-):
-    """Build pocket RDKit mol from amino-acid SDF templates.
-
-    Returns ``(pocket_mol_h, backbone_indices, gi_to_heavy)`` where
-
-    * *backbone_indices* — atom indices in the H-added mol for backbone
-      heavy atoms (N, CA, C, O) and their attached hydrogens.
-    * *gi_to_heavy* — ``{gi: heavy_idx}`` mapping a pocket_feats global
-      atom index to the corresponding heavy-atom index in *pocket_mol_h*
-      (indices are stable after ``AddHs``).
-    """
-    from rdkit import Chem
-    from rdkit.Geometry import Point3D
-
-    residue_keys = pocket_feats['residue_keys']
-    n_atoms_per_residue = pocket_feats['n_atoms_per_residue']
-    missing_mask = pocket_feats['missing_mask']
-
-    if isinstance(coords, torch.Tensor):
-        coords = coords.detach().cpu()
-    if isinstance(backbone_com, torch.Tensor):
-        backbone_com = backbone_com.detach().cpu()
-
-    abs_coords = (coords + backbone_com).numpy().astype(np.float64)
-    if isinstance(missing_mask, torch.Tensor):
-        missing_mask = missing_mask.numpy()
-
-    template_cache: Dict[str, Optional['Chem.Mol']] = {}
-    combined = None
-    backbone_heavy_global: set = set()
-    gi_to_heavy: Dict[int, int] = {}   # pocket_feats gi → heavy-atom idx in pocket_mol_h
-    global_offset = 0
-    atom_offset = 0
-
-    for res_idx, (chain_id, resname, resnum, _entity_id) in enumerate(residue_keys):
-        n_atoms = n_atoms_per_residue[res_idx]
-
-        if resname not in template_cache:
-            sdf_path = _REFS_DIR / f'{resname}.sdf'
-            if not sdf_path.exists():
-                sdf_path = _REFS_DIR / 'UNK.sdf'
-            supp = Chem.SDMolSupplier(str(sdf_path), removeHs=True)
-            template_cache[resname] = supp[0] if len(supp) > 0 else None
-
-        tmpl = template_cache[resname]
-        if tmpl is None:
-            atom_offset += n_atoms
-            continue
-
-        present = [i for i in range(n_atoms)
-                    if not missing_mask[atom_offset + i] and i < tmpl.GetNumAtoms()]
-        if not present:
-            atom_offset += n_atoms
-            continue
-
-        old_to_new: Dict[int, int] = {}
-        res_mol = Chem.RWMol()
-        for new_idx, old_idx in enumerate(present):
-            src = tmpl.GetAtomWithIdx(old_idx)
-            a = Chem.Atom(src.GetAtomicNum())
-            a.SetFormalCharge(src.GetFormalCharge())
-            res_mol.AddAtom(a)
-            old_to_new[old_idx] = new_idx
-
-        for bond in tmpl.GetBonds():
-            a1, a2 = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
-            if a1 in old_to_new and a2 in old_to_new:
-                res_mol.AddBond(old_to_new[a1], old_to_new[a2], bond.GetBondType())
-
-        try:
-            Chem.SanitizeMol(res_mol)
-        except Exception:
-            Chem.SanitizeMol(
-                res_mol,
-                Chem.SanitizeFlags.SANITIZE_ALL ^ Chem.SanitizeFlags.SANITIZE_PROPERTIES,
-            )
-        mol = res_mol.GetMol()
-
-        conf = Chem.Conformer(mol.GetNumAtoms())
-        for new_idx, old_idx in enumerate(present):
-            gi = atom_offset + old_idx
-            conf.SetAtomPosition(new_idx, Point3D(*abs_coords[gi].tolist()))
-            gi_to_heavy[gi] = global_offset + old_to_new[old_idx]
-        mol.AddConformer(conf, assignId=True)
-
-        for old_idx in present:
-            if old_idx < 4:
-                backbone_heavy_global.add(global_offset + old_to_new[old_idx])
-
-        global_offset += mol.GetNumAtoms()
-        combined = mol if combined is None else Chem.CombineMols(combined, mol)
-        atom_offset += n_atoms
-
-    if combined is None:
-        raise ValueError("No pocket residues could be built from templates")
-
-    combined_h = Chem.AddHs(combined, addCoords=True)
-
-    backbone_fixed = set(backbone_heavy_global)
-    for i in range(combined_h.GetNumAtoms()):
-        atom = combined_h.GetAtomWithIdx(i)
-        if atom.GetAtomicNum() == 1:
-            for nb in atom.GetNeighbors():
-                if nb.GetIdx() in backbone_heavy_global:
-                    backbone_fixed.add(i)
-                    break
-
-    return combined_h, backbone_fixed, gi_to_heavy
-
-
-# ---------------------------------------------------------------------------
-# Ligand mol from stored data  (for MMFF relaxation)
-# ---------------------------------------------------------------------------
-
-def _build_ligand_mol_from_data(
-    ligand_data: Dict,
-    coords_abs: np.ndarray,
-):
-    """Build an RDKit mol (with H) directly from ``ligands.pkl`` data.
-
-    Atoms are in SDF order — no canonical-rank remapping needed.
-    """
-    from rdkit import Chem
-    from rdkit.Geometry import Point3D
-
-    atoms = ligand_data['atoms']
-    bonds = ligand_data['bonds']
-
-    mol = Chem.RWMol()
-    for ad in atoms:
-        a = Chem.Atom(ad['atomic_number'])
-        a.SetFormalCharge(ad['formal_charge'])
-        a.SetNumExplicitHs(ad.get('num_explicit_hs', 0))
-        a.SetNoImplicit(True)
-        mol.AddAtom(a)
-
-    for bd in bonds:
-        mol.AddBond(
-            bd['begin_atom_idx'], bd['end_atom_idx'],
-            _bond_type_from_str(bd['bond_type']),
-        )
-        if bd.get('is_aromatic', False):
-            b = mol.GetBondBetweenAtoms(bd['begin_atom_idx'], bd['end_atom_idx'])
-            b.SetIsAromatic(True)
-
-    try:
-        Chem.SanitizeMol(mol)
-    except Exception:
-        Chem.SanitizeMol(
-            mol,
-            Chem.SanitizeFlags.SANITIZE_ALL ^ Chem.SanitizeFlags.SANITIZE_PROPERTIES,
-        )
-    mol = mol.GetMol()
-
-    n_heavy = len(atoms)
-    conf = Chem.Conformer(n_heavy)
-    for i in range(n_heavy):
-        conf.SetAtomPosition(i, Point3D(*coords_abs[i].tolist()))
-    mol.AddConformer(conf, assignId=True)
-
-    mol_h = Chem.AddHs(mol, addCoords=True)
-    return mol_h
-
-
-# ---------------------------------------------------------------------------
-# Main entry point
-# ---------------------------------------------------------------------------
-
-def relax_complex(
-    system_dir: Union[str, Path],
-    rec_coords: torch.Tensor,
-    lig_coords: torch.Tensor,
-    backbone_com: torch.Tensor,
-    output_dir: Optional[Union[str, Path]] = None,
-    max_iterations: int = 200,
-    mmff_variant: str = 'MMFF94s',
-    write_structures: bool = True,
-    lig_restraint_k: float = 10.0,
-) -> Dict:
-    """Energy-minimise predicted ligand(s) with MMFF in the pocket context.
-
-    Pocket backbone atoms are fixed; sidechains and ligand atoms move.
-    Ligand heavy atoms are harmonically restrained to their predicted positions
-    so MMFF resolves clashes without displacing the pose.
-    Pocket is built from amino-acid SDF templates (``prep/.refs/``),
-    ligand from stored data in ``ligands.pkl``.
-    Uses RDKit MMFF (with UFF fallback).  MMFF setup may log ``Can't kekulize mol``
-    when kekulization fails; that path is skipped in favour of UFF, or unrelaxed
-    coordinates if both fail.  Plain SDF output (``write_ligand_sdf``) does not
-    use MMFF and is unaffected.
-
-    Parameters
-    ----------
-    system_dir : path to the featurised system (must contain
-        ``pocket_features.pt``, ``ligand_features.pt``, ``ligands.pkl``).
-    rec_coords : [N_rec, 3] centred receptor coordinates.
-    lig_coords : [N_lig, 3] centred ligand coordinates.
-    backbone_com : [3] backbone centre of mass used for centring.
-    max_iterations : MMFF minimisation steps (default 200).
-    mmff_variant : ``'MMFF94s'`` (default) or ``'MMFF94'``.
-    write_structures : write ``predicted.cif`` and ``relaxed.cif``.
-    lig_restraint_k : harmonic force constant (kcal/mol/Å²) applied to ligand
-        heavy atoms to prevent large pose displacement (default 10.0).
-        Set to 0.0 to disable. Only applied for MMFF (not UFF fallback).
-
-    Returns
-    -------
-    dict with ``rec_coords``, ``lig_coords`` (centred; relaxed when minimisation
-    succeeds, else same as input prediction), ``initial_energy_kcal_mol``,
-    ``final_energy_kcal_mol``, and optionally CIF paths.
-    """
-    from rdkit import Chem
-    from rdkit.Chem import AllChem
-    from joblib import load as joblib_load
-
-    system_dir = Path(system_dir)
-    pocket_feats = torch.load(system_dir / 'pocket_features.pt', weights_only=False)
-    ligand_feats = torch.load(system_dir / 'ligand_features.pt', weights_only=False)
-    ligands_data = joblib_load(system_dir / 'ligands.pkl')
-
-    # ── 1. Pocket mol from SDF templates ──────────────────────────────
-    pocket_mol_h, backbone_fixed, gi_to_heavy = _build_pocket_mol(
-        pocket_feats, rec_coords, backbone_com,
-    )
-    n_pocket_h = pocket_mol_h.GetNumAtoms()
-
-    # ── 2. Prepare coordinates (absolute) ────────────────────────────
-    if isinstance(backbone_com, torch.Tensor):
-        bcom_t = backbone_com.detach().cpu()
-    else:
-        bcom_t = backbone_com
-    bcom = bcom_t.numpy() if hasattr(bcom_t, 'numpy') else np.asarray(bcom_t)
-
-    if isinstance(rec_coords, torch.Tensor):
-        rec_coords_cpu = rec_coords.detach().cpu()
-    else:
-        rec_coords_cpu = rec_coords
-    abs_rec = (rec_coords_cpu + bcom_t).numpy().astype(np.float64)
-
-    if isinstance(lig_coords, torch.Tensor):
-        lig_coords_cpu = lig_coords.detach().cpu()
-    else:
-        lig_coords_cpu = lig_coords
-    abs_lig = (lig_coords_cpu + bcom_t).numpy().astype(np.float64)
-
-    n_atoms_per_lig = ligand_feats.get('n_atoms_per_ligand', [abs_lig.shape[0]])
-
-    relaxed_lig_parts: List[np.ndarray] = []
-    initial_energies: List[float] = []
-    final_energies: List[float] = []
-    # Predicted receptor coords unless a minimisation pass updates them
-    relaxed_rec_abs = abs_rec.copy()
-
-    lig_offset = 0
-    for lig_idx, lig_data in enumerate(ligands_data):
-        n_heavy = n_atoms_per_lig[lig_idx]
-        lig_abs = abs_lig[lig_offset:lig_offset + n_heavy]
-
-        try:
-            # ── 3. Ligand mol from stored data (SDF order) ───────────
-            mol_h = _build_ligand_mol_from_data(lig_data, lig_abs)
-            n_lig_h = mol_h.GetNumAtoms()
-
-            heavy_indices = [
-                i for i in range(n_lig_h)
-                if mol_h.GetAtomWithIdx(i).GetAtomicNum() != 1
-            ]
-
-            # ── 4. Combine: ligand first, pocket second ──────────────
-            combined = Chem.CombineMols(mol_h, pocket_mol_h)
-            try:
-                Chem.SanitizeMol(combined)
-            except Exception:
-                Chem.SanitizeMol(
-                    combined,
-                    Chem.SanitizeFlags.SANITIZE_ALL ^ Chem.SanitizeFlags.SANITIZE_PROPERTIES,
-                )
-
-            # ── 5. Setup force field (MMFF → UFF fallback) ───────────
-            # MMFF may log "Can't kekulize mol" when MMFFGetMoleculeProperties fails.
-            ff = None
-            mp = AllChem.MMFFGetMoleculeProperties(combined, mmffVariant=mmff_variant)
-            if mp is not None:
-                ff = AllChem.MMFFGetMoleculeForceField(combined, mp)
-
-            use_uff = ff is None
-            if use_uff:
-                logger.info("MMFF failed for ligand %d, falling back to UFF", lig_idx)
-                ff = AllChem.UFFGetMoleculeForceField(combined)
-
-            if ff is None:
-                logger.warning(
-                    "All force fields failed for ligand %d — using unrelaxed coords",
-                    lig_idx,
-                )
-                relaxed_lig_parts.append(lig_abs.copy())
-                lig_offset += n_heavy
-                continue
-
-            for pocket_i in range(n_pocket_h):
-                if pocket_i in backbone_fixed:
-                    combined_i = n_lig_h + pocket_i
-                    if use_uff:
-                        ff.AddFixedPoint(combined_i)
-                    else:
-                        ff.MMFFAddPositionConstraint(combined_i, 0.0, 1e5)
-
-            if not use_uff and lig_restraint_k > 0.0:
-                for i in heavy_indices:
-                    ff.MMFFAddPositionConstraint(i, 0.0, lig_restraint_k)
-
-            # ── 6. Minimise ──────────────────────────────────────────
-            initial_e = ff.CalcEnergy()
-            ff.Minimize(maxIts=max_iterations)
-            final_e = ff.CalcEnergy()
-
-            initial_energies.append(initial_e)
-            final_energies.append(final_e)
-
-            # ── 7. Extract ligand + pocket coords ────────────────────
-            conf = combined.GetConformer()
-            relaxed_coords = np.array([
-                [conf.GetAtomPosition(i).x,
-                 conf.GetAtomPosition(i).y,
-                 conf.GetAtomPosition(i).z]
-                for i in heavy_indices
-            ])
-            relaxed_lig_parts.append(relaxed_coords)
-
-            for gi, heavy_idx in gi_to_heavy.items():
-                combined_idx = n_lig_h + heavy_idx
-                p = conf.GetAtomPosition(combined_idx)
-                relaxed_rec_abs[gi] = [p.x, p.y, p.z]
-
-        except Exception as e:
-            logger.warning(
-                "Relaxation failed for ligand %d (%s) — using unrelaxed coords",
-                lig_idx,
-                e,
-            )
-            relaxed_lig_parts.append(lig_abs.copy())
-
-        lig_offset += n_heavy
-
-    relaxed_lig_abs = np.concatenate(relaxed_lig_parts, axis=0)
-    relaxed_lig_centered = torch.tensor(relaxed_lig_abs - bcom, dtype=torch.float32)
-    relaxed_rec_centered = torch.tensor(relaxed_rec_abs - bcom, dtype=torch.float32)
-
-    initial_energy = sum(initial_energies) if initial_energies else 0.0
-    final_energy = sum(final_energies) if final_energies else 0.0
-    logger.info("MMFF energy: %.2f -> %.2f kcal/mol", initial_energy, final_energy)
-
-    results: Dict = {
-        'rec_coords': relaxed_rec_centered,
-        'lig_coords': relaxed_lig_centered,
-        'initial_energy_kcal_mol': initial_energy,
-        'final_energy_kcal_mol': final_energy,
-        'minimization_ok': bool(initial_energies),
-    }
-
-    # ── 9. Write structures ───────────────────────────────────────────
-    if write_structures and output_dir is not None:
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        pred_cif = write_complex_cif(
-            pocket_feats, ligand_feats, rec_coords, lig_coords,
-            backbone_com, output_dir / 'predicted.cif',
-        )
-        results['predicted_cif'] = pred_cif
-
-        relaxed_cif = write_complex_cif(
-            pocket_feats, ligand_feats,
-            relaxed_rec_centered, relaxed_lig_centered,
-            backbone_com, output_dir / 'relaxed.cif',
-        )
-        results['relaxed_cif'] = relaxed_cif
-
-    return results

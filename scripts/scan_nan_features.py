@@ -8,8 +8,9 @@ Per system checks:
   - cdist risk on coords used in training: NaN/Inf coords, and min pairwise
     distance over (valid rec + ligand) atoms (dist==0 -> cdist backward NaN)
 
-Output: data_v2_plinder/logs/nan_feature_scan.json
+Output: <out>.json plus <out dir>/nan_feature_scan_systems.txt
 '''
+import argparse
 import json
 from pathlib import Path
 
@@ -17,8 +18,6 @@ import torch
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-TR = Path('/home/mhjang/workspace/flex/data_v2_plinder/train')
-OUT = Path('/home/mhjang/workspace/flex/data_v2_plinder/logs/nan_feature_scan.json')
 MIN_DIST = 1e-3
 FLOAT_KEYS = ['atom_features', 'bond_features', 'coords', 'ref_coords', 'constraint_matrix']
 
@@ -76,6 +75,13 @@ def scan(sd):
 
 
 def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--data-dir', type=Path, required=True,
+                    help='root holding one featurised system directory per system')
+    ap.add_argument('--out', type=Path, default=Path('nan_feature_scan.json'))
+    args = ap.parse_args()
+    TR, OUT = args.data_dir, args.out
+    OUT.parent.mkdir(parents=True, exist_ok=True)
     sds = sorted(d for d in TR.iterdir()
                  if d.is_dir() and (d / 'ligand_features.pt').exists() and (d / 'pocket_features.pt').exists())
     print(f'scanning {len(sds)} systems', flush=True)

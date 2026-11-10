@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Tuple
 from .featurize import featurize_atoms, featurize_bonds
 from .parse import get_sp2_torsion_indices
 from .const import PROTEIN_BACKBONE_ATOM_NAMES
+from .validation import SIGNATURE_KEY, ligand_atom_signature
 
 _BACKBONE_ATOMS = set(PROTEIN_BACKBONE_ATOM_NAMES)
 _CB_ATOM_NAME = "CB"
@@ -26,6 +27,7 @@ def process_ligands(ligands: List[Dict]) -> Dict:
     smiles_list = []
     n_atoms_per_ligand = []
     all_sp2_torsions = []
+    all_chiral_atoms = []
     torsion_ligand_idx = []
     atom_offset = 0
     all_bonds_data = []
@@ -65,6 +67,12 @@ def process_ligands(ligands: List[Dict]) -> Dict:
             all_sp2_torsions.append(global_torsions)
             torsion_ligand_idx.extend([lig_idx] * len(global_torsions))
 
+        if 'chiral_atom_indices' in lig_data and len(lig_data['chiral_atom_indices']) > 0:
+            local_chiral = np.asarray(lig_data['chiral_atom_indices']).copy()
+            # cols 0:4 are atom indices; col 4 is the R/S flag and must not shift
+            local_chiral[:, :4] += atom_offset
+            all_chiral_atoms.append(local_chiral)
+
         if 'constraint_matrix' in lig_data and lig_data['constraint_matrix'] is not None:
             constraint_matrix = torch.tensor(lig_data['constraint_matrix'], dtype=torch.float32)
             all_constraint_matrices.append(constraint_matrix)
@@ -96,6 +104,11 @@ def process_ligands(ligands: List[Dict]) -> Dict:
         bond_features[global_i, global_j] = feats
         bond_features[global_j, global_i] = feats
 
+    if all_chiral_atoms:
+        chiral_atom_indices = torch.tensor(np.concatenate(all_chiral_atoms), dtype=torch.long)
+    else:
+        chiral_atom_indices = torch.empty((0, 5), dtype=torch.long)
+
     if all_sp2_torsions:
         sp2_torsion_indices = torch.tensor(np.concatenate(all_sp2_torsions), dtype=torch.long)
         torsion_ligand_idx = torch.tensor(torsion_ligand_idx, dtype=torch.long)
@@ -111,7 +124,9 @@ def process_ligands(ligands: List[Dict]) -> Dict:
         'ligand_uid_vec': ligand_uid_vec,
         'smiles_list': smiles_list,
         'n_atoms_per_ligand': n_atoms_per_ligand,
+        SIGNATURE_KEY: ligand_atom_signature(ligands),
         'sp2_torsion_indices': sp2_torsion_indices,
+        'chiral_atom_indices': chiral_atom_indices,
         'torsion_ligand_idx': torsion_ligand_idx,
         'constraint_matrix': constraint_matrix,
     }

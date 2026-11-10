@@ -15,10 +15,12 @@ from .layers import (
     PairwiseFeatureEmbedderWithConstraints,
     AtomTransformer,
     TriangleUpdatingModule,
-    EVAModule,
     GeometricAttentionModule,
     FlowMatchingModule,
     PocketInteraction,
+    PairTransition,
+    CrossPairInit,
+    _cuet_fp32,
 )
 
 
@@ -37,9 +39,8 @@ class FlexConfig:
     pair_hidden_dim: int = 256
 
     # Layer counts
-    num_atom_layers: int = 4
-    num_token_layers: int = 8  # For FlexModel (token-level)
-    num_geo_layers: int = 4    # For FlexModelV2 (geometric attention)
+    num_atom_layers: int = 6
+    num_geo_layers: int = 6
 
     # Attention settings
     num_atom_heads: int = 8
@@ -51,8 +52,6 @@ class FlexConfig:
     # Other settings
     initial_dropout: float = 0.0  # Dropout in initial embedding layers
     output_dropout: float = 0.1
-    use_outer_product: bool = False
-    attenuate_by_dist: bool = False
     use_embeddings: bool = True  # Whether to use ESM/UniMol embeddings
 
     # Time embedding
@@ -73,13 +72,20 @@ class FlexConfig:
     # a tight 1-Å blob it must explode outward from.
     sidechain_prior_sigma: float = 2.0
     ligand_prior_sigma: float = 5.0
-    chemistry_block_diagonal: bool = True  # intra-molecular chemistry trunk; False = allow rec<->lig in AtomTransformer/triangle
-
     # Attention soft capping
     soft_cap: float = 50.0  # Soft cap for attention scores (prevents saturation)
 
     # Attention stats logging
     return_attn_stats: bool = False
+
+    # Chemistry trunk widths. The v10 architecture itself is not optional: the
+    # SwiGLU FFN, per-head pair bias, pair transition, rec<->lig cross attention,
+    # entity-scoped triangle, outer-product-mean mixing, per-layer r_ij message,
+    # vector norm, vector->scalar readout and the l=2 flow head are always on.
+    chem_ffn_mult: int = 4
+    chem_pair_transition_mult: int = 2
+    chem_opm_dim: int = 32         # outer-product-mean single->pair mixing width (c)
+    tp_method: str = 'naive'       # cuet FCTP method; 'naive' is ~30x faster than 'fused'
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -90,6 +96,15 @@ class FlexConfig:
         assert self.nv >= 1, f"nv must be at least 1, got {self.nv}"
         assert self.nv % self.num_geo_heads == 0, \
             f"nv ({self.nv}) must be divisible by num_geo_heads ({self.num_geo_heads})"
+        # forward_flow passes precomputed per-head biases; the geo layer tells them
+        # apart from raw pair features by the last dim.
+        assert self.pair_hidden_dim != self.num_geo_heads, \
+            "pair_hidden_dim must differ from num_geo_heads"
+        assert self.geo_dist_bins > 0, \
+            "the per-layer r_ij message needs geo_dist_bins > 0"
+        assert self.chem_opm_dim > 0, \
+            f"chem_opm_dim must be positive, got {self.chem_opm_dim}"
+        assert self.tp_method in ('fused', 'naive'), f"tp_method must be fused|naive, got {self.tp_method!r}"
 
         # Default time_embed_dim to ns if not explicitly set
         if self.time_embed_dim != self.ns:
@@ -203,25 +218,28 @@ class FlexModel(nn.Module):
             constraint_mat=constraint_matrix,
             block_mask=block_mask,
         )
-        # Chemistry trunk is INTRA-MOLECULAR: receptor and ligand never exchange
-        # information here. It encodes identity + internal constraints only; all
-        # rec<->lig coupling is deferred to the flow trunk, where it can use the
-        # live pose x_t. The block-diagonal mask (intra-entity, padding-aware)
-        # gates the pair features, the AtomTransformer attention, and triangle.
-        # chem_mask gates AtomTransformer attention, pair updates, and triangle.
-        # block-diagonal -> intra-molecular trunk; padding mask -> rec<->lig allowed.
-        if self.config.chemistry_block_diagonal:
-            chem_mask_f = block_mask                            # [S, N, N, 1]
-            chem_mask_2d = block_mask.squeeze(-1).contiguous()  # [S, N, N]
-        else:
-            chem_mask_f = pair_mask_f
-            chem_mask_2d = pair_mask.to(p.dtype).contiguous()
-        block_mask_f = chem_mask_f
-        block_mask_2d = chem_mask_2d
-        p = p * block_mask_f
-        del ref_disto, bond_feats, constraint_matrix, block_mask
+        # block_mask is per RESIDUE for the receptor (rec_uid_vec = residue index)
+        # and per ligand for the ligand; entities are {receptor, each ligand}.
+        entity_id = torch.cat([torch.zeros_like(rec_uid_vec), 1 + lig_uid_vec], dim=1)
+        same_entity = entity_id.unsqueeze(-1) == entity_id.unsqueeze(-2)        # [S, N, N]
 
-        # Interleaved AtomTransformer + TriangleUpdate
+        # The distogram (pair embedder, above) stays block-masked: receptor ref
+        # coords are per-residue templates. Attention, single->pair mixing and the
+        # per-layer re-mask use the padding-only pair_mask; inter-residue and
+        # cross-entity pairs are seeded from the post-fusion single features.
+        p = p * block_mask
+        pair_class = torch.where(block_mask.squeeze(-1).bool(), 0, torch.where(same_entity, 1, 2))
+        cross_mask = pair_mask_f * (1.0 - block_mask)
+        p = p + self.cross_pair_init(q, pair_class) * cross_mask
+        del pair_class, cross_mask
+        block_mask_f = pair_mask_f
+        block_mask_2d = pair_mask.to(p.dtype).contiguous()
+        # Triangle multiplication is scoped to one entity: intra-receptor and
+        # intra-ligand pairs only, padding excluded.
+        tri_mask_2d = (pair_mask & same_entity).to(p.dtype).contiguous()
+        del ref_disto, bond_feats, constraint_matrix, block_mask, same_entity, entity_id
+
+        # Interleaved AtomTransformer + TriangleUpdate (+ PairTransition)
         for index, (atom_layer, tri_layer) in enumerate(
             zip(self.atom_layers.values(), self.triangle_layers.values())
         ):
@@ -235,15 +253,20 @@ class FlexModel(nn.Module):
                     pair_mask=block_mask_2d,
                 )
                 p = p * block_mask_f
-                p = checkpoint(tri_layer, p, block_mask_2d, use_reentrant=False)
+                p = checkpoint(tri_layer, p, tri_mask_2d, use_reentrant=False)
             else:
                 q, p = atom_layer(q=q, p=p, atom_mask=atom_mask, pair_mask=block_mask_2d)
                 p = p * block_mask_f
-                p = tri_layer(p, mask=block_mask_2d)
+                p = tri_layer(p, mask=tri_mask_2d)
             p = p * block_mask_f
+            pt_layer = self.pair_transition_layers[f'pair_transition_{index}']
+            if use_ckpt:
+                p = checkpoint(pt_layer, p, block_mask_f, use_reentrant=False)
+            else:
+                p = pt_layer(p, block_mask_f)
             q = q * atom_mask_f
 
-        del block_mask_f, block_mask_2d
+        del block_mask_f, block_mask_2d, tri_mask_2d
         return q, p
 
     def forward_flow(
@@ -261,16 +284,24 @@ class FlexModel(nn.Module):
         scale = self.config.coord_scale
         atom_coords = atom_coords / scale
 
+        # Per-layer pair bias [S, N, N, H] computed on the distinct systems, then
+        # gathered per timestep; the [B, N, N, pair] copy is never materialised.
+        geo_layers = list(self.geo_attention_layers.values())
+        if self.config.use_gradient_checkpointing and self.training:
+            # Recompute LN(p_chem) [S, N, N, pair] in backward instead of keeping one per layer.
+            biases = [checkpoint(lambda x, l=layer: l.bias_proj(l.bias_norm(x)), p_chem, use_reentrant=False)
+                      for layer in geo_layers]
+        else:
+            biases = [layer.bias_proj(layer.bias_norm(p_chem)) for layer in geo_layers]
+
         if system_index_per_timestep is not None:
             sys_idx = system_index_per_timestep.to(q_chem.device).long()
             q = q_chem.index_select(0, sys_idx)
-            p = p_chem.index_select(0, sys_idx)
+            biases = [b.index_select(0, sys_idx) for b in biases]
         elif q_chem.shape[0] == 1 and B > 1:
             q = q_chem.expand(B, -1, -1)
-            p = p_chem
         elif q_chem.shape[0] == B:
             q = q_chem
-            p = p_chem
         else:
             raise ValueError(
                 f"Chemistry batch ({q_chem.shape[0]}) cannot feed flow batch ({B}); "
@@ -284,13 +315,10 @@ class FlexModel(nn.Module):
         if mask_f is not None:
             q = q * mask_f
 
-        # EVA emits flat [B, N, nv*8] combined irrep
+        # The vector stream starts empty: it is seeded by the per-layer r_ij
+        # message inside each geometric attention layer.
         attn_stats = {} if return_attn else None
-        if return_attn:
-            v, eva_attn_stats = self.eva_module(x=q, r=atom_coords, atom_mask=atom_eva_mask, return_attn=True)
-            attn_stats['eva_entropy'] = eva_attn_stats['entropy']
-        else:
-            v = self.eva_module(x=q, r=atom_coords, atom_mask=atom_eva_mask)
+        v = q.new_zeros(B, q.shape[1], self.config.nv * 8)
 
         # Live rec<->lig pocket cross-conditioning (compute once, in Å, before
         # the geo stack). atom_coords was divided by scale above; multiply back.
@@ -300,23 +328,24 @@ class FlexModel(nn.Module):
         # fixed within this forward) and reuse across all geo layers — proximity
         # routing the similarity-only logits lack.
         dist_rbf = self._distance_rbf(atom_coords * scale) if self.config.geo_dist_bins > 0 else None
+        geom = self._pair_geometry(atom_coords * scale, atom_eva_mask)
 
         geo_attn_entropies = []
-        for index, layer in enumerate(self.geo_attention_layers.values()):
+        for index, (layer, bias) in enumerate(zip(geo_layers, biases)):
             use_ckpt = (self.config.use_gradient_checkpointing and self.training
                         and index % self.config.gradient_checkpoint_every == 0)
             if use_ckpt:
-                q, v = checkpoint(layer, q, v, p, atom_eva_mask, False, dist_rbf, use_reentrant=False)
+                q, v = checkpoint(layer, q, v, bias, atom_eva_mask, False, dist_rbf, geom, use_reentrant=False)
             else:
                 if return_attn:
                     q, v, geo_stats = layer(
-                        scalar_feats=q, vector_feats=v, bias=p,
-                        atom_mask=atom_eva_mask, return_attn=True, dist_rbf=dist_rbf,
+                        scalar_feats=q, vector_feats=v, bias=bias,
+                        atom_mask=atom_eva_mask, return_attn=True, dist_rbf=dist_rbf, geom=geom,
                     )
                     geo_attn_entropies.append(geo_stats['entropy'])
                 else:
-                    q, v = layer(scalar_feats=q, vector_feats=v, bias=p,
-                                 atom_mask=atom_eva_mask, dist_rbf=dist_rbf)
+                    q, v = layer(scalar_feats=q, vector_feats=v, bias=bias,
+                                 atom_mask=atom_eva_mask, dist_rbf=dist_rbf, geom=geom)
             q = self.adaln_geo_layers[f'adaln_geo_{index}'](q, t_emb.unsqueeze(1))
             if mask_f is not None:
                 q = q * mask_f
@@ -325,7 +354,7 @@ class FlexModel(nn.Module):
         if return_attn and geo_attn_entropies:
             attn_stats['geo_entropy'] = torch.stack(geo_attn_entropies).mean()
 
-        del p
+        del biases, geom
 
         flow = self.flow_head(q, v)
         flow = flow * scale
@@ -420,6 +449,22 @@ class FlexModel(nn.Module):
         width = self.config.geo_dist_max / self.config.geo_dist_bins
         return torch.exp(-((d.unsqueeze(-1) - centers) / width) ** 2)
 
+    def _pair_geometry(self, x_ang: torch.Tensor, atom_mask: torch.Tensor | None):
+        """unit_ij = r_hat(x_i - x_j) [B, N, N, 3] and Y2(unit_ij) [B, N, N, 5];
+        zero on the diagonal, coincident pairs and padded atoms."""
+        r = x_ang.unsqueeze(2) - x_ang.unsqueeze(1)
+        dist = r.norm(dim=-1, keepdim=True)
+        invalid = dist < 1e-6
+        if atom_mask is not None:
+            valid = atom_mask.bool()
+            invalid = invalid | ~(valid.unsqueeze(1) & valid.unsqueeze(2)).unsqueeze(-1)
+        # Safe direction on invalid pairs keeps the SH/norm backward finite.
+        r = torch.where(invalid, torch.ones_like(r), r)
+        unit = r / r.norm(dim=-1, keepdim=True)
+        B, N = x_ang.shape[:2]
+        y2 = _cuet_fp32(self.rij_sh, unit.reshape(-1, 3)).reshape(B, N, N, 5)
+        return unit.masked_fill(invalid, 0.0), y2.masked_fill(invalid, 0.0)
+
     def _instantiate_layers(self):
         # --- Chemistry Trunk ---
         self.initial_embedder = InitialEmbedder(
@@ -446,8 +491,9 @@ class FlexModel(nn.Module):
                 num_heads=self.config.num_atom_heads,
                 attn_dropout=self.config.attn_dropout,
                 use_gated_attention=self.config.use_gated_attention,
-                use_outer_product=self.config.use_outer_product,
                 use_qk_norm=self.config.use_qk_norm,
+                chem_ffn_mult=self.config.chem_ffn_mult,
+                opm_dim=self.config.chem_opm_dim,
             ) for i in range(self.config.num_atom_layers)
         })
 
@@ -456,6 +502,12 @@ class FlexModel(nn.Module):
                 ns=self.config.pair_hidden_dim,
             ) for i in range(self.config.num_atom_layers)
         })
+        self.pair_transition_layers = nn.ModuleDict({
+            f'pair_transition_{i}': PairTransition(
+                self.config.pair_hidden_dim, self.config.chem_pair_transition_mult,
+            ) for i in range(self.config.num_atom_layers)
+        })
+        self.cross_pair_init = CrossPairInit(self.config.ns, self.config.pair_hidden_dim)
 
         # --- Flow Matching Trunk ---
         self.time_embedder = TimeEmbedder(
@@ -464,13 +516,6 @@ class FlexModel(nn.Module):
         )
 
         self.adaln_flow_init = AdaLN(in_dim=self.config.ns)
-
-        self.eva_module = EVAModule(
-            scalar_dim=self.config.ns,
-            num_heads=self.config.nv,
-            attenuate_by_dist=self.config.attenuate_by_dist,
-            soft_cap=self.config.soft_cap,
-        )
 
         self.geo_attention_layers = nn.ModuleDict({
             f'geo_attention_{i}': GeometricAttentionModule(
@@ -482,6 +527,7 @@ class FlexModel(nn.Module):
                 use_gated_attention=self.config.use_gated_attention,
                 soft_cap=self.config.soft_cap,
                 dist_bins=self.config.geo_dist_bins,
+                tp_method=self.config.tp_method,
             ) for i in range(self.config.num_geo_layers)
         })
 
@@ -494,11 +540,13 @@ class FlexModel(nn.Module):
             ns=self.config.ns,
             nv=self.config.nv,
             dropout=self.config.output_dropout,
+            tp_method=self.config.tp_method,
         )
         self.pocket_interaction = PocketInteraction(
             ns=self.config.ns,
             nv=self.config.nv,
         )
+        self.rij_sh = cuet.SphericalHarmonics(ls=[2], normalize=True)
 
     def _initialize_weights(self):
         if self.config.use_embeddings:

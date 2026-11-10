@@ -235,7 +235,7 @@ class MultiHeadAttention(nn.Module):
                     attn_mask = bias.squeeze(-1).unsqueeze(1).expand(-1, self.num_heads, -1, -1)
                 else:
                     # [B, N_q, N_k, H] -> [B, H, N_q, N_k]
-                    attn_mask = bias.permute(0, 3, 1, 2)
+                    attn_mask = bias.permute(0, 3, 1, 2).contiguous()
             else:
                 attn_mask = bias
 
@@ -307,37 +307,6 @@ class MultiHeadAttention(nn.Module):
                     nn.init.ones_(m.weight)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
-
-
-class SelfOuterProductModule(nn.Module):
-    '''
-    An outer product module that computes the outer product of the input features
-    Used to generate rich pair features from single features
-
-    '''
-
-    def __init__(self,
-                 in_dim: int,
-                 hidden_dim: int):
-        super().__init__()
-
-        self.w_left = nn.Linear(in_dim, hidden_dim, bias = False)
-        self.w_right = nn.Linear(in_dim, hidden_dim, bias = False)
-        self.w_out = nn.Linear(hidden_dim, in_dim, bias = False)
-
-        self._initialize_weights()
-
-    def forward(self, x: torch.Tensor):
-        B, N, _ = x.shape
-        left = self.w_left(x)
-        right = self.w_right(x)
-        x_pair = left.unsqueeze(2) * right.unsqueeze(1) # [B, N, 1, C] * [B, 1, N, C] -> [B, N, N, C]
-        x_pair = self.w_out(x_pair)
-        return x_pair
-
-    def _initialize_weights(self):
-        for m in [self.w_left, self.w_right, self.w_out]:
-            nn.init.xavier_uniform_(m.weight)
 
 
 class TimeEmbedder(nn.Module):
@@ -457,12 +426,14 @@ class AtomTransformer(nn.Module):
                  num_heads: int,
                  attn_dropout: float,
                  use_gated_attention: bool,
-                 use_outer_product: bool,
                  use_qk_norm: bool = True,
+                 chem_ffn_mult: int = 4,
+                 opm_dim: int = 32,
                  ):
         super().__init__()
-        self.use_outer_product = use_outer_product
+        assert opm_dim > 0, f'opm_dim must be positive, got {opm_dim}'
         self.pair_hidden_dim = pair_hidden_dim
+        self.opm_dim = opm_dim
 
         self.q_norm = nn.LayerNorm(single_hidden_dim)
         self.w_cond = nn.Linear(single_hidden_dim, single_hidden_dim, bias = False)  # For GLU
@@ -471,16 +442,20 @@ class AtomTransformer(nn.Module):
         # Pair projection removed - p is now passed in from outside
         self.w_pair_out = nn.Linear(pair_hidden_dim, pair_hidden_dim, bias = False)  # Projects mixed pair features
 
-        if use_outer_product:
-            self.outer_product = SelfOuterProductModule(in_dim = single_hidden_dim, hidden_dim = single_hidden_dim // 4)
-
-        # Project outer product output to pair_hidden_dim
-        self.outer_to_pair = nn.Linear(single_hidden_dim, pair_hidden_dim, bias = False)
+        # Outer-product-mean: q_pair_ij = sum_cd a_ic b_jd W_cdk (directed pairs)
+        self.opm_a = nn.Linear(single_hidden_dim, opm_dim, bias = False)
+        self.opm_b = nn.Linear(single_hidden_dim, opm_dim, bias = False)
+        bound = math.sqrt(6.0 / (opm_dim * opm_dim + pair_hidden_dim))
+        # Stored 2-D ([c*c, pair]) so Muon orthogonalises it as one matrix; viewed as [c, c, pair] in the einsum.
+        self.opm_out = nn.Parameter(torch.empty(opm_dim * opm_dim, pair_hidden_dim).uniform_(-bound, bound))
         self.q_pair_norm = nn.LayerNorm(pair_hidden_dim)  # Normalize q_pair before adding to p
 
-        # For attention bias: project pair features to scalar
+        # For attention bias: project pair features to scalar (or one per head)
         self.p_norm = nn.LayerNorm(pair_hidden_dim)
-        self.pair_to_bias = nn.Linear(pair_hidden_dim, 1, bias = False)
+        self.pair_to_bias = nn.Linear(pair_hidden_dim, num_heads, bias = False)
+
+        self.ffn_norm = nn.LayerNorm(single_hidden_dim)
+        self.ffn = SwiGLU(single_hidden_dim, single_hidden_dim * chem_ffn_mult)
 
         self.mixing_linear_1 = nn.Linear(pair_hidden_dim, pair_hidden_dim, bias = False)
         self.mixing_linear_2 = nn.Linear(pair_hidden_dim, pair_hidden_dim, bias = False)
@@ -532,7 +507,7 @@ class AtomTransformer(nn.Module):
         g = self.sigmoid(self.w_cond(q))  # [B, N, F]
 
         # Single and pair repr. mixing: Make [B, N, N, F] out of [B, N, F]
-        p = self.mix_single_to_pair(q, p, self.use_outer_product)
+        p = self.mix_single_to_pair(q, p)
         if pair_mask_f is not None:
             p = p * pair_mask_f
         p = self.mixing_linear_1(p)
@@ -540,7 +515,7 @@ class AtomTransformer(nn.Module):
             p = p * pair_mask_f
 
         # Project p to attention bias
-        attn_bias = self.pair_to_bias(p)  # [B, N, N, 1]
+        attn_bias = self.pair_to_bias(p)  # [B, N, N, 1 or H]
         # Attention connectivity follows pair_mask when given (so a block-diagonal
         # pair_mask yields block-diagonal attention); else fall back to padding.
         attn_mask = None
@@ -563,8 +538,12 @@ class AtomTransformer(nn.Module):
             q = q * mask_f
         del q_residual
 
+        q = q + self.ffn(self.ffn_norm(q))
+        if mask_f is not None:
+            q = q * mask_f
+
         # Mix again
-        p = self.mix_single_to_pair(q, p, self.use_outer_product)
+        p = self.mix_single_to_pair(q, p)
         if pair_mask_f is not None:
             p = p * pair_mask_f
         p = self.mixing_linear_2(p)
@@ -578,13 +557,15 @@ class AtomTransformer(nn.Module):
             return q, p, attn_stats
         return q, p
 
-    def mix_single_to_pair(self, q: torch.Tensor, p: torch.Tensor, use_outer_product: bool):
-        if use_outer_product:
-            q_pair = self.outer_product(q)  # [B, N, N, single_hidden_dim]
-            q_pair = self.outer_to_pair(q_pair)  # [B, N, N, pair_hidden_dim]
-        else:
-            q_pair = q.unsqueeze(1) * q.unsqueeze(2)  # [B, N, N, single_hidden_dim]
-            q_pair = self.outer_to_pair(q_pair)  # [B, N, N, pair_hidden_dim]
+    def mix_single_to_pair(self, q: torch.Tensor, p: torch.Tensor):
+        # Outer-product-mean. q is atom-masked at both call sites and opm_a/b are
+        # bias-free, so a/b are exactly 0 on padded atoms. Folding W into b keeps
+        # the largest intermediate at [B, N, c, pair]; [B, N, N, c, c] never exists.
+        a = self.opm_a(q)
+        w = self.opm_out.view(self.opm_dim, self.opm_dim, self.pair_hidden_dim)
+        bk = torch.einsum('bjd, cdk -> bjck', self.opm_b(q), w)
+        q_pair = torch.einsum('bic, bjck -> bijk', a, bk)
+        del a, bk
 
         # Normalize q_pair to match scale of normalized p
         q_pair = self.q_pair_norm(q_pair)
@@ -691,128 +672,51 @@ class TriangleUpdatingModule(nn.Module):
                 nn.init.zeros_(m.bias)
 
 
-class EVAModule(nn.Module):
-    '''
-    EVA variant emitting combined (l=1 + l=2) irrep features per node.
+class PairTransition(nn.Module):
+    '''Residual pair MLP: p + W2 SiLU(W1 LN(p)), masked.'''
 
-    Aggregates raw r_ij (l=1, magnitude-bearing — matches base EVA) AND
-    Y_2(r̂_ij) (l=2, unit-norm) via the same scalar attention weights.
-    Output is a flat tensor [B, N, nv*(3+5)] in cuet mul_ir layout for
-    irreps `nv x 1o + nv x 2e` — first nv*3 dims are the l=1 block,
-    last nv*5 dims are the l=2 block.
-    '''
-
-    def __init__(self,
-                 scalar_dim: int,
-                 num_heads: int,
-                 attenuate_by_dist: bool = True,
-                 soft_cap: float = 50.0,
-                 ):
+    def __init__(self, pair_dim: int, mult: int = 2):
         super().__init__()
-        self.scalar_dim = scalar_dim
-        self.num_heads = num_heads
-        self.head_dim = scalar_dim // num_heads
-        self.attenuate_by_dist = attenuate_by_dist
-        self.soft_cap = soft_cap
+        self.norm = nn.LayerNorm(pair_dim)
+        self.w1 = nn.Linear(pair_dim, pair_dim * mult, bias=False)
+        self.w2 = nn.Linear(pair_dim * mult, pair_dim, bias=False)
+        nn.init.xavier_uniform_(self.w1.weight)
+        nn.init.xavier_uniform_(self.w2.weight)
 
-        self.w_q = nn.Linear(scalar_dim, scalar_dim, bias=False)
-        self.w_k = nn.Linear(scalar_dim, scalar_dim, bias=False)
-        self.norm_1 = nn.LayerNorm(scalar_dim)
+    def forward(self, p: torch.Tensor, mask_f: torch.Tensor):
+        """p [B, N, N, pair], mask_f [B, N, N, 1]."""
+        return (p + self.w2(F.silu(self.w1(self.norm(p))))) * mask_f
 
-        # Fused SH kernel: l=2 only (l=1 comes from raw r_ij to preserve magnitude)
-        self.sh_l2 = cuet.SphericalHarmonics(ls=[2], normalize=True)
 
-        self._initialize_weights()
+class CrossPairInit(nn.Module):
+    '''
+    Inter-residue / cross-entity pair initialisation from post-fusion single
+    features: W cat[Pi u_i, Pj u_j, Pi u_i * Pj u_j] + E[pair_class]. Pair
+    classes: 0 intra-residue (unused, caller masks it), 1 same-entity
+    inter-residue, 2 cross-entity. The concat-Linear is evaluated as a sum of
+    column blocks so only the product term is N^2 x ns/4.
+    '''
 
-    def forward(self,
-                x: torch.Tensor,
-                r: torch.Tensor,
-                bias: Optional[torch.Tensor] = None,
-                atom_mask: Optional[torch.Tensor] = None,
-                return_attn: bool = False,
-                ):
-        B, N, _ = x.shape
-        r_ij = r.unsqueeze(2) - r.unsqueeze(1)  # [B, N, N, 3]
+    def __init__(self, ns: int, pair_dim: int):
+        super().__init__()
+        self.rank = ns // 4
+        self.proj_i = nn.Linear(ns, self.rank, bias=False)
+        self.proj_j = nn.Linear(ns, self.rank, bias=False)
+        self.out = nn.Linear(3 * self.rank, pair_dim, bias=False)
+        self.pair_class_emb = nn.Embedding(3, pair_dim)
+        for m in [self.proj_i, self.proj_j, self.out]:
+            nn.init.xavier_uniform_(m.weight)
+        nn.init.normal_(self.pair_class_emb.weight, std=0.02)
+        with torch.no_grad():
+            self.pair_class_emb.weight[0].zero_()
 
-        x = self.norm_1(x)
-        q = self.w_q(x).reshape(B, N, self.num_heads, self.head_dim)
-        k = self.w_k(x).reshape(B, N, self.num_heads, self.head_dim)
-
-        attn = torch.einsum('bihd, bjhd -> bijh', q, k) / math.sqrt(float(self.head_dim))
-        del q, k
-        if bias is not None:
-            attn = attn + bias
-
-        if self.attenuate_by_dist:
-            dist = torch.norm(r_ij, dim=-1, keepdim=True)
-            dist_mask = dist < 1e-4
-            r_l1 = r_ij / (dist + 1e-6)
-            attn = attn - dist
-            attn = self.soft_cap * torch.tanh(attn / self.soft_cap)
-            valid_attn_mask = ~dist_mask
-            if atom_mask is not None:
-                key_mask = atom_mask.bool().unsqueeze(1).unsqueeze(-1)
-                valid_attn_mask = valid_attn_mask & key_mask
-                attn = attn.masked_fill(~key_mask, -1e9)
-            attn = attn.masked_fill(dist_mask, -1e9)
-            attn = attn.softmax(dim=2)
-            attn = attn * valid_attn_mask.to(attn.dtype)
-            attn = attn / attn.sum(dim=2, keepdim=True).clamp(min=1e-8)
-        else:
-            r_l1 = r_ij
-            attn = self.soft_cap * torch.tanh(attn / self.soft_cap)
-            valid_attn_mask = None
-            if atom_mask is not None:
-                key_mask = atom_mask.bool().unsqueeze(1).unsqueeze(-1)
-                attn = attn.masked_fill(~key_mask, -1e9)
-                valid_attn_mask = key_mask
-            attn = attn.softmax(dim=2)
-            if valid_attn_mask is not None:
-                attn = attn * valid_attn_mask.to(attn.dtype)
-                attn = attn / attn.sum(dim=2, keepdim=True).clamp(min=1e-8)
-
-        attn_stats = None
-        if return_attn:
-            entropy = -(attn * torch.log(attn + 1e-9)).sum(dim=2).mean()
-            attn_stats = {
-                'mean': attn.mean().detach(),
-                'max': attn.max().detach(),
-                'entropy': entropy.detach(),
-            }
-
-        # l=1 aggregation matches base EVA: distance attenuation uses unit directions.
-        v_l1 = torch.einsum('bijh, bijc -> bihc', attn, r_l1)  # [B, N, H, 3]
-
-        # l=2 SH aggregation (unit-norm Y_2 of r_hat_ij)
-        y_l2 = _cuet_fp32(self.sh_l2, r_ij.reshape(-1, 3)).reshape(B, N, N, 5)
-        v_l2 = torch.einsum('bijh, bijc -> bihc', attn, y_l2)  # [B, N, H, 5]
-        del attn, r_ij, r_l1, y_l2
-
-        if atom_mask is not None:
-            mask4 = atom_mask.to(v_l1.dtype).unsqueeze(-1).unsqueeze(-1)
-            v_l1 = v_l1 * mask4
-            v_l2 = v_l2 * mask4
-
-        # Pack as flat irrep tensor: [nv x 1o block] || [nv x 2e block]
-        out = torch.cat([
-            v_l1.reshape(B, N, self.num_heads * 3),
-            v_l2.reshape(B, N, self.num_heads * 5),
-        ], dim=-1)
-        if return_attn:
-            return out, attn_stats
-        return out
-
-    def _initialize_weights(self):
-        for m in self.modules():
-            if hasattr(m, 'bias') and m.bias is not None:
-                nn.init.zeros_(m.bias)
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
-            if isinstance(m, nn.LayerNorm):
-                if m.weight is not None:
-                    nn.init.ones_(m.weight)
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
+    def forward(self, u: torch.Tensor, pair_class: torch.Tensor):
+        """u [S, N, ns], pair_class [S, N, N] long -> [S, N, N, pair] (unmasked)."""
+        a = self.proj_i(u)
+        b = self.proj_j(u)
+        w_i, w_j, w_ij = self.out.weight.split(self.rank, dim=1)
+        return (F.linear(a, w_i).unsqueeze(2) + F.linear(b, w_j).unsqueeze(1)
+                + F.linear(a.unsqueeze(2) * b.unsqueeze(1), w_ij) + self.pair_class_emb(pair_class))
 
 
 class GeometricAttentionModule(nn.Module):
@@ -833,10 +737,12 @@ class GeometricAttentionModule(nn.Module):
                  use_gated_attention: bool = True,
                  soft_cap: float = 50.0,
                  use_xsa: bool = True,
-                 dist_bins: int = 0,
+                 dist_bins: int = 32,
+                 tp_method: str = 'naive',
                  ):
         super().__init__()
         assert ns % num_heads == 0, f'ns ({ns}) % num_heads ({num_heads}) != 0'
+        assert dist_bins > 0, 'the per-layer r_ij message needs dist_bins > 0'
         assert nv % num_heads == 0, f'nv ({nv}) % num_heads ({num_heads}) != 0'
 
         self.ns = ns
@@ -875,7 +781,7 @@ class GeometricAttentionModule(nn.Module):
         self.vector_tp_a = cuet.Linear(ir_node, ir_node, layout=layout)
         self.vector_tp_b = cuet.Linear(ir_node, ir_node, layout=layout)
         self.vector_tp = cuet.FullyConnectedTensorProduct(
-            ir_node, ir_node, ir_node, layout=layout,
+            ir_node, ir_node, ir_node, layout=layout, method=tp_method,
         )
 
         # Bias / gates
@@ -893,9 +799,31 @@ class GeometricAttentionModule(nn.Module):
         self.scalar_ffn = SwiGLU(ns)
         self.scalar_ffn_norm = nn.LayerNorm(ns, elementwise_affine=True)
 
+        # Equivariant RMS norm on the Q/K/V input (per-channel gain, no centering).
+        self.vnorm_gamma_l1 = nn.Parameter(torch.ones(nv))
+        self.vnorm_gamma_l2 = nn.Parameter(torch.ones(nv))
+
+        # r_hat_ij / Y2(r_hat_ij) aggregated with the attention weights.
+        self.rij_rbf = nn.Linear(dist_bins, num_heads, bias=False)
+        self.rij_out = cuet.Linear(
+            cue.Irreps('O3', f'{num_heads}x1o + {num_heads}x2e'), ir_node, layout=layout,
+        )
+
+        # Invariant readout v -> q: norms and <v, W v> per channel.
+        self.v2s_lin_l1 = cuet.Linear(cue.Irreps('O3', f'{nv}x1o'), cue.Irreps('O3', f'{nv}x1o'), layout=layout)
+        self.v2s_lin_l2 = cuet.Linear(cue.Irreps('O3', f'{nv}x2e'), cue.Irreps('O3', f'{nv}x2e'), layout=layout)
+        self.v2s_norm = nn.LayerNorm(4 * nv)
+        self.v2s_out = nn.Linear(4 * nv, ns, bias=False)
+
         self._initialize_weights()
         if self.dist_bias is not None:
             nn.init.zeros_(self.dist_bias.weight)   # start as no-op
+        # rij_out nonzero at trained-weight scale: it is the only seed of the vector
+        # stream, and a zero-init (1, W) weight under Muon grows by <= lr per step,
+        # i.e. ~1000 warmup steps of near-zero velocity. cuet's flat weight fools
+        # xavier (fan_out=1), so set the scale explicitly.
+        nn.init.normal_(self.rij_out.weight, std=0.1)
+        nn.init.zeros_(self.v2s_out.weight)
 
     def forward(self,
                 scalar_feats: torch.Tensor,  # [B, N, ns]
@@ -904,6 +832,7 @@ class GeometricAttentionModule(nn.Module):
                 atom_mask: Optional[torch.Tensor] = None,
                 return_attn: bool = False,
                 dist_rbf: Optional[torch.Tensor] = None,  # [B, N, N, dist_bins] live distance features
+                geom: tuple[torch.Tensor, torch.Tensor] | None = None,  # (unit_ij [B,N,N,3], y2_ij [B,N,N,5])
                 ):
         B, N, _ = scalar_feats.shape
         mask_f = atom_mask.to(scalar_feats.dtype).unsqueeze(-1) if atom_mask is not None else None
@@ -913,6 +842,15 @@ class GeometricAttentionModule(nn.Module):
 
         scalar_residual = scalar_feats
         vector_residual = vector_feats
+
+        v1 = vector_feats[..., :self.l1_dim].reshape(B, N, self.nv, 3)
+        v2 = vector_feats[..., self.l1_dim:].reshape(B, N, self.nv, 5)
+        v1 = v1 * (self.vnorm_gamma_l1.unsqueeze(-1)
+                   * torch.rsqrt(v1.pow(2).sum(-1).mean(-1, keepdim=True).unsqueeze(-1) + 1e-2))
+        v2 = v2 * (self.vnorm_gamma_l2.unsqueeze(-1)
+                   * torch.rsqrt(v2.pow(2).sum(-1).mean(-1, keepdim=True).unsqueeze(-1) + 1e-2))
+        vector_feats = torch.cat([v1.reshape(B, N, self.l1_dim), v2.reshape(B, N, self.l2_dim)], dim=-1)
+        del v1, v2
 
         scalar_feats = self.scalar_norm(scalar_feats)
         if mask_f is not None:
@@ -989,6 +927,16 @@ class GeometricAttentionModule(nn.Module):
 
         attn_weights = F.dropout(attn_weights, p=self.attn_dropout, training=self.training)
 
+        unit, y2 = geom
+        w = attn_weights * self.rij_rbf(dist_rbf).permute(0, 3, 1, 2)
+        d1 = torch.einsum('bhij, bijc -> bihc', w, unit)  # [B, N, H, 3]
+        d2 = torch.einsum('bhij, bijc -> bihc', w, y2)    # [B, N, H, 5]
+        del w
+        rij_vec = _cuet_fp32(self.rij_out, torch.cat([
+            d1.reshape(BN, self.num_heads * 3), d2.reshape(BN, self.num_heads * 5),
+        ], dim=-1))
+        del d1, d2
+
         # Scalar aggregation
         scalar_out = torch.matmul(attn_weights, V_s)
         if self.use_xsa:
@@ -1019,6 +967,8 @@ class GeometricAttentionModule(nn.Module):
 
         # Output projection
         vector_out = _cuet_fp32(self.vector_out, vector_out.reshape(BN, self.v_dim))
+        vector_out = vector_out + rij_vec
+        del rij_vec
 
         # Scalar-to-vector gating (separate per irrep block)
         g_l1 = self.vector_gate_l1(scalar_out)  # [B, N, nv]
@@ -1042,6 +992,19 @@ class GeometricAttentionModule(nn.Module):
         scalar_out = scalar_out + scalar_residual
         vector_out = vector_out + vector_residual
         del scalar_residual, vector_residual
+
+        v1 = vector_out[..., :self.l1_dim].reshape(BN, self.l1_dim)
+        v2 = vector_out[..., self.l1_dim:].reshape(BN, self.l2_dim)
+        w1 = _cuet_fp32(self.v2s_lin_l1, v1).reshape(B, N, self.nv, 3)
+        w2 = _cuet_fp32(self.v2s_lin_l2, v2).reshape(B, N, self.nv, 5)
+        v1 = v1.reshape(B, N, self.nv, 3)
+        v2 = v2.reshape(B, N, self.nv, 5)
+        inv = torch.cat([
+            torch.sqrt(v1.pow(2).sum(-1) + 1e-6), torch.sqrt(v2.pow(2).sum(-1) + 1e-6),
+            (v1 * w1).sum(-1), (v2 * w2).sum(-1),
+        ], dim=-1)  # [B, N, 4nv]
+        scalar_out = scalar_out + self.v2s_out(self.v2s_norm(inv))
+        del v1, v2, w1, w2, inv
 
         # SwiGLU FFN for scalars
         scalar_ffn = self.scalar_ffn_norm(scalar_out)
@@ -1086,7 +1049,8 @@ class FlowMatchingModule(nn.Module):
     def __init__(self,
                  ns: int,
                  nv: int,
-                 dropout: float = 0.1):
+                 dropout: float = 0.1,
+                 tp_method: str = 'naive'):
         super().__init__()
         self.ns = ns
         self.nv = nv
@@ -1099,15 +1063,20 @@ class FlowMatchingModule(nn.Module):
         self.vector_proj_1 = cuet.Linear(ir_v_in, ir_v_half, layout=layout)
         self.vector_proj_2 = cuet.Linear(ir_v_half, ir_v_out, layout=layout)
 
+        # LayerNorm on q only; channel norms of v are concatenated after it.
+        self.scalar_norm = nn.LayerNorm(ns)
         self.scalar_projector = nn.Sequential(
-            nn.LayerNorm(ns),
-            nn.Linear(ns, ns // 4, bias=False),
+            nn.Linear(ns + 2 * nv, ns // 4, bias=False),
             nn.SiLU(),
             nn.Dropout(dropout),
             nn.Linear(ns // 4, 1, bias=False),
         )
+        self.l2_tp = cuet.FullyConnectedTensorProduct(
+            cue.Irreps('O3', f'{nv}x2e'), ir_v_in, ir_v_in, layout=layout, method=tp_method,
+        )
 
         self._initialize_weights()
+        nn.init.zeros_(self.l2_tp.weight)
 
     def forward(self,
                 scalar_feats: torch.Tensor,
@@ -1120,9 +1089,13 @@ class FlowMatchingModule(nn.Module):
             vector_feats = vector_feats.reshape(B * N, -1)
 
         v_l1 = vector_feats[..., :self.l1_dim].contiguous()
+        v_l2 = vector_feats[..., self.l1_dim:].contiguous()
+        n1 = torch.sqrt(v_l1.reshape(*v_l1.shape[:-1], self.nv, 3).pow(2).sum(-1) + 1e-6)
+        n2 = torch.sqrt(v_l2.reshape(*v_l2.shape[:-1], self.nv, 5).pow(2).sum(-1) + 1e-6)
+        s = self.scalar_projector(torch.cat([self.scalar_norm(scalar_feats), n1, n2], dim=-1))
+        v_l1 = v_l1 + _cuet_fp32(self.l2_tp, v_l2, v_l1)
         v_l1 = _cuet_fp32(self.vector_proj_1, v_l1)
         v_l1 = _cuet_fp32(self.vector_proj_2, v_l1)
-        s = self.scalar_projector(scalar_feats)
         velocity = s * v_l1
 
         if input_3d:
@@ -1164,27 +1137,31 @@ class PocketInteraction(nn.Module):
         self.cutoff = cutoff
         self.rec_scal = nn.Linear(ns + 2, ns, bias=False)
         self.lig_scal = nn.Linear(ns + 2, ns, bias=False)
+        nn.init.zeros_(self.rec_scal.weight)
+        nn.init.zeros_(self.lig_scal.weight)
         self.rec_dir = nn.Linear(ns + 2, nv, bias=False)
         self.lig_dir = nn.Linear(ns + 2, nv, bias=False)
-        for m in [self.rec_scal, self.lig_scal, self.rec_dir, self.lig_dir]:
-            nn.init.zeros_(m.weight)
+        nn.init.zeros_(self.rec_dir.weight)
+        nn.init.zeros_(self.lig_dir.weight)
 
     def _interact(self, x_a, q_a, x_b, q_b, mask_b):
         """a attends to cross-entity partners b. Returns (scal [B,Na,ns+2],
-        dir [B,Na,3] unit-direction to soft-nearest b)."""
+        dir [B,Na,3] unit-direction to soft-nearest b, or None)."""
         d = torch.cdist(x_a, x_b)                                   # [B,Na,Nb] (Å)
-        valid = (d <= self.cutoff)
+        valid = d < self.cutoff
+        fc = 0.5 * (torch.cos(math.pi * d / self.cutoff) + 1) * valid
         if mask_b is not None:
             valid = valid & mask_b.bool().unsqueeze(1)
-        neg = (d / self.tau).masked_fill(~valid, 1e4)              # finite -> no NaN
-        w = torch.softmax(-neg, dim=-1)
+        logits = (-d / self.tau + torch.log(fc + 1e-9)).masked_fill(~valid, -1e4)
+        w = torch.softmax(logits, dim=-1)
         has = valid.any(dim=-1, keepdim=True)
         w = w * has                                                 # zero empty rows
         ctx = torch.einsum('ban, bnf -> baf', w, q_b)
         d_masked = d.masked_fill(~valid, 1e4)
         softmin = -self.tau * torch.logsumexp(-d_masked / self.tau, dim=-1)
         softmin = torch.where(has.squeeze(-1), softmin, d.new_full(softmin.shape, self.cutoff))
-        count = (torch.sigmoid(self.cutoff - d) * valid).sum(dim=-1)
+        softmin = softmin / self.cutoff
+        count = torch.log1p((fc * valid).sum(dim=-1))
         scal = torch.cat([ctx, softmin.unsqueeze(-1), count.unsqueeze(-1)], dim=-1)
         diff = x_b.unsqueeze(1) - x_a.unsqueeze(2)                  # [B,Na,Nb,3]
         unit = diff / diff.norm(dim=-1, keepdim=True).clamp(min=1e-6)

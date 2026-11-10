@@ -17,12 +17,15 @@ from typing import Dict, Optional, Union, List
 from dataclasses import dataclass, field, asdict
 from copy import deepcopy
 import numpy as np
+import gc
+import logging
 from pathlib import Path
 
 from .models import FlexModel, FlexConfig
 from .loss import FlexLoss, LossConfig
 from .config import FullConfig, load_config
 from equiflex.prep.geometry import place_cb_ideal
+from equiflex.prep.validation import validate_cached_unimol
 
 from muon import SingleDeviceMuonWithAuxAdam, MuonWithAuxAdam
 #from normuon import SingleDeviceNorMuonWithAuxAdam
@@ -118,14 +121,6 @@ class FlexTrainer(pl.LightningModule):
         self.save_hyperparameters()
 
         self.config = config
-        # FlexModel is the canonical (latest, V5) architecture. Legacy V1–V4
-        # variants are not distributed.
-        mc = getattr(config.training, 'model_class', 'V5')
-        if mc not in ('V5', None):
-            raise ValueError(
-                f"model_class={mc!r} refers to a legacy architecture that is not "
-                "included in this distribution; only 'V5' (FlexModel) is available."
-            )
         self.model = FlexModel(config.model)
         self.loss_fn = FlexLoss(config.loss)
 
@@ -150,7 +145,7 @@ class FlexTrainer(pl.LightningModule):
         # materialized on first training step (device known then).
         self._loss_keys = (
             'total', 'flow', 'bond_length', 'bond_angle',
-            'vdw', 'vdw_active', 'vdw_max', 'torsion',
+            'vdw', 'vdw_active', 'vdw_max', 'hbond', 'torsion', 'chiral',
         )
         self._loss_accum: Dict[str, torch.Tensor] = {}
         self._loss_count = 0
@@ -259,9 +254,13 @@ class FlexTrainer(pl.LightningModule):
             rec_cb_mask = batch.get('rec_cb_mask')
             cb_mask_3d = rec_cb_mask.unsqueeze(-1) if rec_cb_mask is not None else torch.zeros_like(backbone_mask_3d)
 
-            # Compute global backbone COM for centering
-            backbone_coords_sum = (backbone_mask_3d * rec_x_1).sum(dim=1, keepdim=True)  # [B, 1, 3]
-            backbone_count = rec_backbone_mask.sum(dim=1, keepdim=True).unsqueeze(-1).clamp(min=1.0)  # [B, 1, 1]
+            # Global backbone COM for centering; missing atoms hold 0-placeholders.
+            com_mask = rec_backbone_mask
+            rec_missing_mask = batch.get('rec_missing_mask')
+            if rec_missing_mask is not None:
+                com_mask = rec_backbone_mask * (~rec_missing_mask.bool())
+            backbone_coords_sum = (com_mask.unsqueeze(-1) * rec_x_1).sum(dim=1, keepdim=True)  # [B, 1, 3]
+            backbone_count = com_mask.sum(dim=1, keepdim=True).unsqueeze(-1).clamp(min=1.0)  # [B, 1, 1]
             global_backbone_com = backbone_coords_sum / backbone_count  # [B, 1, 3]
 
             # Center all coordinates by global backbone COM
@@ -545,6 +544,7 @@ class FlexTrainer(pl.LightningModule):
             constraint_matrix=constraint_matrix,
             rec_torsion_indices=batch.get('rec_torsion_indices'),
             lig_torsion_indices=batch.get('lig_torsion_indices'),
+            lig_chiral_indices=batch.get('lig_chiral_indices'),
             n_rec=N_rec,
             backbone_mask=backbone_mask,
             cb_mask=cb_mask,
@@ -579,6 +579,54 @@ class FlexTrainer(pl.LightningModule):
         progress = (self.global_step - warmup) / span  # <0 during warmup
         stage = int(progress * n) + 1                  # 1..n across the span
         return max(1, min(n, stage))
+
+    def _skip_oom_step(self, err: Exception):
+        """Recover from a CUDA OOM by dropping the current gradient update.
+
+        Zeroes any partial gradients, resets ConFIG accumulators (so a partially
+        accumulated micro-batch does not corrupt the next ConFIG merge), frees the
+        cached allocator blocks, and returns ``None`` — which tells Lightning to
+        skip the optimizer step for this batch rather than crash the run.
+        """
+        print(f"WARNING: CUDA OOM at step {self.global_step}; skipping gradient update. {err}")
+        optimizers = self.optimizers()
+        if not isinstance(optimizers, (list, tuple)):
+            optimizers = [optimizers]
+        for opt in optimizers:
+            opt.zero_grad(set_to_none=True)
+        if self.use_config:
+            self._flow_grad_accum = None
+            self._phys_grad_accum = None
+            self._config_accum_count = 0
+        gc.collect()
+        torch.cuda.empty_cache()
+        return None
+
+    def backward(self, loss, *args, **kwargs):
+        """Guard Lightning's automatic backward against CUDA OOM.
+
+        In automatic-optimization mode (e.g. ablations with use_config=False) the
+        backward pass runs here, outside training_step. Returning None from
+        training_step only skips forward-OOM batches; a backward-time OOM would
+        still crash. On OOM we drop the gradients (zeroed) so the ensuing
+        optimizer.step() is a no-op — the update is effectively skipped — instead
+        of aborting the run. Manual-optimization (ConFIG) backward propagates
+        normally and is handled at the _config_backward_and_step call site.
+        """
+        if not self.automatic_optimization:
+            return super().backward(loss, *args, **kwargs)
+        try:
+            super().backward(loss, *args, **kwargs)
+        except torch.cuda.OutOfMemoryError as e:
+            print(f"WARNING: CUDA OOM in backward at step {self.global_step}; "
+                  f"skipping gradient update. {e}")
+            optimizers = self.optimizers()
+            if not isinstance(optimizers, (list, tuple)):
+                optimizers = [optimizers]
+            for opt in optimizers:
+                opt.zero_grad(set_to_none=True)
+            gc.collect()
+            torch.cuda.empty_cache()
 
     def training_step(self, batch, batch_idx):
         # Check if we should collect attention stats this step
@@ -621,7 +669,11 @@ class FlexTrainer(pl.LightningModule):
             sync_dist=sync_dist,
         )
 
-        losses = self._shared_step(batch, return_attn=should_log_attn, aux_scale=aux_scale, num_unrolls=num_unrolls)
+        try:
+            losses = self._shared_step(batch, return_attn=should_log_attn, aux_scale=aux_scale, num_unrolls=num_unrolls)
+        except torch.cuda.OutOfMemoryError as e:
+            # Skip the gradient update for this batch instead of crashing.
+            return self._skip_oom_step(e)
 
         # Check for NaN/Inf in loss
         if torch.isnan(losses['total']) or torch.isinf(losses['total']):
@@ -636,7 +688,10 @@ class FlexTrainer(pl.LightningModule):
             return losses['total'].new_tensor(0.0, requires_grad=True)
 
         if self.use_config:
-            self._config_backward_and_step(losses)
+            try:
+                self._config_backward_and_step(losses)
+            except torch.cuda.OutOfMemoryError as e:
+                return self._skip_oom_step(e)
 
         B = self._effective_batch_size(batch)
 
@@ -807,7 +862,7 @@ class FlexTrainer(pl.LightningModule):
         B = self._effective_batch_size(batch)
 
         sync_dist = getattr(self.trainer, "world_size", 1) > 1
-        for key in ('total', 'flow', 'bond_length', 'bond_angle', 'vdw', 'vdw_active', 'vdw_max', 'torsion'):
+        for key in ('total', 'flow', 'bond_length', 'bond_angle', 'vdw', 'vdw_active', 'vdw_max', 'hbond', 'torsion', 'chiral'):
             prog = key == 'total'
             self.log(f'val/{key}_loss', losses.get(key, 0), on_step=False, on_epoch=True,
                      prog_bar=prog, batch_size=B, sync_dist=sync_dist)
@@ -820,7 +875,7 @@ class FlexTrainer(pl.LightningModule):
         B = self._effective_batch_size(batch)
 
         sync_dist = getattr(self.trainer, "world_size", 1) > 1
-        for key in ('total', 'flow', 'bond_length', 'bond_angle', 'vdw', 'vdw_active', 'vdw_max', 'torsion'):
+        for key in ('total', 'flow', 'bond_length', 'bond_angle', 'vdw', 'vdw_active', 'vdw_max', 'hbond', 'torsion', 'chiral'):
             self.log(f'test/{key}_loss', losses.get(key, 0), on_step=False, on_epoch=True,
                      batch_size=B, sync_dist=sync_dist)
 
@@ -869,9 +924,13 @@ class FlexTrainer(pl.LightningModule):
             rec_backbone_mask_3d = rec_backbone_mask.unsqueeze(-1)  # [B, N_rec, 1]
             rec_cb_mask_3d = rec_cb_mask.unsqueeze(-1) if rec_cb_mask is not None else torch.zeros_like(rec_backbone_mask_3d)
 
-            # Compute global backbone COM for centering
-            backbone_coords_sum = (rec_backbone_mask_3d * rec_x_1).sum(dim=1, keepdim=True)  # [B, 1, 3]
-            backbone_count = rec_backbone_mask.sum(dim=1, keepdim=True).unsqueeze(-1).clamp(min=1.0)  # [B, 1, 1]
+            # Global backbone COM for centering; missing atoms hold 0-placeholders.
+            com_mask = rec_backbone_mask
+            rec_missing_mask = batch.get('rec_missing_mask')
+            if rec_missing_mask is not None:
+                com_mask = rec_backbone_mask * (~rec_missing_mask.bool())
+            backbone_coords_sum = (com_mask.unsqueeze(-1) * rec_x_1).sum(dim=1, keepdim=True)  # [B, 1, 3]
+            backbone_count = com_mask.sum(dim=1, keepdim=True).unsqueeze(-1).clamp(min=1.0)  # [B, 1, 1]
             global_backbone_com = backbone_coords_sum / backbone_count  # [B, 1, 3]
 
             # Center all coordinates by global backbone COM
@@ -1034,29 +1093,104 @@ class FlexTrainer(pl.LightningModule):
 
         return torch.sqrt(msd)
 
-    def _get_parameter_groups(self):
+    def _get_parameter_groups(self, log_adam_2d: bool = False):
         """
         Separate parameters for Muon vs AdamW optimization.
 
         Muon: 2D hidden weight matrices (attention, MLP weights)
         AdamW: Embeddings, output heads, biases, 1D params
+        log_adam_2d: log (rank zero) any ndim>=2 params that ended up on AdamW.
         """
         muon_params = []
         adam_params = []
+        adam_2d = []
 
         for name, param in self.model.named_parameters():
             if not param.requires_grad:
                 continue
 
-            # Use AdamW for biases and 1D params
-            is_bias = 'bias' in name.lower() or param.ndim < 2
+            # AdamW for biases and 1D params. Matching on the '.bias' suffix (not the
+            # substring) keeps 2D projections such as pair_to_bias / bias_proj /
+            # dist_bias on Muon. Resuming a checkpoint saved before this change
+            # moves those params between groups, so its optimizer state no longer
+            # lines up: set training.reset_optimizer_state.
+            is_bias = name.endswith('.bias') or param.ndim < 2
 
             if is_bias:
                 adam_params.append(param)
+                if param.ndim >= 2:
+                    adam_2d.append(name)
             else:
                 muon_params.append(param)
 
+        if log_adam_2d and (self._trainer is None or self.trainer.is_global_zero):
+            logging.getLogger(__name__).info("AdamW params with ndim>=2: %s", adam_2d)
         return muon_params, adam_params
+
+    def on_load_checkpoint(self, checkpoint):
+        """Reset optimizer moments when training.reset_optimizer_state is set.
+
+        Lightning raises if optimizer_states/lr_schedulers are absent on a fit
+        resume, so instead of dropping them the per-param state is cleared and
+        each group's param indices are rebuilt for the current grouping. Group
+        hyperparameters (incl. the scheduled lr) and the LR scheduler state are
+        kept, so the LR curve continues where the checkpoint left off.
+        """
+        if not self.config.training.reset_optimizer_state:
+            return
+        if getattr(self.config.optimizer, 'optimizer_type', 'muon').lower() == 'adamw':
+            sizes = [sum(1 for _ in self.model.parameters())]
+        else:
+            sizes = [len(g) for g in self._get_parameter_groups() if g]
+        for opt_state in checkpoint.get('optimizer_states', []):
+            opt_state['state'] = {}
+            start = 0
+            for group, n in zip(opt_state['param_groups'], sizes, strict=True):
+                group['params'] = list(range(start, start + n))
+                start += n
+        print(f'reset_optimizer_state: cleared optimizer state, param groups rebuilt with sizes {sizes}')
+
+    def on_train_start(self):
+        """Re-aim the linear LR decay at the configured max_steps after a resume.
+
+        Lightning restores the scheduler state_dict from the checkpoint, including
+        LinearLR.total_iters, so a shortened training.max_steps in the YAML would
+        otherwise leave the LR decaying towards the old endpoint. LinearLR's
+        recursive update then continues from the current LR and reaches
+        end_factor at the new total, i.e. a straight line from here to the end.
+        """
+        sched = self.lr_schedulers()
+        schedulers = getattr(sched, '_schedulers', None)
+        if not schedulers or len(schedulers) < 2:
+            return
+        decay = schedulers[-1]
+        target = max(1, self.config.training.max_steps - self.config.scheduler.warmup_steps)
+        if getattr(decay, 'total_iters', target) != target:
+            print(f'LR decay re-aimed: total_iters {decay.total_iters} -> {target} '
+                  f'(global_step {self.global_step}, max_steps {self.config.training.max_steps})')
+            decay.total_iters = target
+
+    def on_train_batch_end(self, outputs, batch, batch_idx):
+        """Cross-rank parameter-consistency guard (DDP never re-broadcasts weights).
+
+        Every log interval, all-gather a cheap fingerprint of the weights and log
+        the largest deviation from rank 0 as train/ddp_param_drift. With manual
+        optimization + ConFIG each rank applies its own merged gradient; if the
+        two backward passes were not both all-reduced the replicas would drift
+        apart silently. Expected value: 0.0 (bit-identical replicas).
+        """
+        if getattr(self.trainer, 'world_size', 1) <= 1 or self.global_step == 0:
+            return
+        if self.global_step % self.config.logging.log_every_n_steps != 0:
+            return
+        if getattr(self, '_drift_logged_step', -1) == self.global_step:
+            return
+        self._drift_logged_step = self.global_step
+        with torch.no_grad():
+            probe = torch.stack([p.detach().float().flatten()[:4096].sum() for p in self.model.parameters()])
+            gathered = self.all_gather(probe)                       # [world, n_params]
+            drift = (gathered - gathered[0]).abs().max()
+        self.log('train/ddp_param_drift', drift, on_step=True, on_epoch=False, logger=True, rank_zero_only=True)
 
     def configure_optimizers(self):
         opt_cfg = self.config.optimizer
@@ -1076,7 +1210,7 @@ class FlexTrainer(pl.LightningModule):
             )
         else:
             # Muon or NorMuon with AdamW for embeddings/biases
-            muon_params, adam_params = self._get_parameter_groups()
+            muon_params, adam_params = self._get_parameter_groups(log_adam_2d=True)
 
             param_groups = []
 
@@ -1220,6 +1354,7 @@ class RMSDEvaluationCallback(Callback):
         pocket_feats = torch.load(system_path / 'pocket_features.pt', weights_only=False)
         esm_emb = torch.load(system_path / 'esm3_embeddings.pt', weights_only=False)
         unimol_emb = torch.load(system_path / 'unimol_embeddings.pt', weights_only=False)
+        validate_cached_unimol(system_path, ligand_feats, unimol_emb)
 
         # Backbone mask
         rec_backbone_mask = pocket_feats.get('backbone_mask', None)
@@ -1379,8 +1514,11 @@ class RMSDEvaluationCallback(Callback):
                 lig_rmsd = pl_module._compute_rmsd(result['lig_pred'], result['lig_gt'], lig_mask.float())
                 lig_rmsds.append(lig_rmsd.item())
 
-            except Exception:
+            except Exception as exc:
                 error_count += 1
+                logging.getLogger(__name__).warning(
+                    'RMSD evaluation failed: split=%s system=%s: %s',
+                    split_name, system_id, exc, exc_info=True)
 
             # Clean up VRAM
             try:
@@ -1408,31 +1546,41 @@ class RMSDEvaluationCallback(Callback):
     def _evaluate_test_losses(
         self,
         pl_module: 'FlexTrainer',
-        trainer,
+        test_loader,
+        prefix: str = 'test',
     ) -> Dict[str, float]:
-        """Evaluate losses on test data."""
+        """Mean training losses over a held-out loader, logged as <prefix>/<key>_loss."""
         from tqdm import tqdm
 
-        # Get test dataloader from pl_module
-        test_loader = getattr(pl_module, 'test_dataloader_ref', None)
         if test_loader is None:
             return {}
 
         device = pl_module.device
-        loss_keys = ('total', 'flow', 'bond_length', 'bond_angle', 'vdw', 'torsion')
+        loss_keys = ('total', 'flow', 'bond_length', 'bond_angle', 'vdw', 'hbond', 'torsion', 'chiral')
         loss_accum = {k: [] for k in loss_keys}
         error_count = 0
 
-        for batch in tqdm(test_loader, desc="Test losses", leave=False):
-            batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
-
+        iterator = iter(test_loader)
+        for batch_idx in tqdm(range(len(test_loader)), desc=f"{prefix} losses", leave=False):
+            batch = None
             try:
-                losses = pl_module._shared_step(batch)
+                # Include loading in the guard: bad feature files should be
+                # identified and counted, not silently lost or fatal to this callback.
+                batch = next(iterator)
+                batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+                with torch.no_grad():
+                    losses = pl_module._shared_step(batch)
                 for k in loss_keys:
                     val = losses.get(k, 0)
                     loss_accum[k].append(val.item() if isinstance(val, torch.Tensor) else val)
-            except Exception:
+            except StopIteration:
+                break
+            except Exception as exc:
                 error_count += 1
+                system_ids = batch.get('system_ids', ['unknown']) if batch is not None else ['see exception']
+                logging.getLogger(__name__).warning(
+                    'Loss evaluation failed: split=%s batch=%s systems=%s: %s',
+                    prefix, batch_idx, system_ids, exc, exc_info=True)
 
             del batch
             torch.cuda.empty_cache()
@@ -1440,9 +1588,9 @@ class RMSDEvaluationCallback(Callback):
         metrics = {}
         if loss_accum['total']:
             for k in loss_keys:
-                metrics[f'test/{k}_loss'] = np.mean(loss_accum[k])
+                metrics[f'{prefix}/{k}_loss'] = np.mean(loss_accum[k])
         if error_count > 0:
-            metrics['test/loss_errors'] = error_count
+            metrics[f'{prefix}/loss_errors'] = error_count
 
         return metrics
 
@@ -1476,9 +1624,11 @@ class RMSDEvaluationCallback(Callback):
         try:
             all_metrics = {}
 
-            # Evaluate test losses
-            test_loss_metrics = self._evaluate_test_losses(pl_module, trainer)
-            all_metrics.update(test_loss_metrics)
+            # Held-out losses: test split and the PoseBusters benchmark
+            all_metrics.update(self._evaluate_test_losses(
+                pl_module, getattr(pl_module, 'test_dataloader_ref', None), 'test'))
+            all_metrics.update(self._evaluate_test_losses(
+                pl_module, getattr(pl_module, 'pb_dataloader_ref', None), 'pb'))
 
             # Evaluate train split RMSD
             train_metrics = self._evaluate_split(

@@ -14,14 +14,15 @@ Usage:
     )
 """
 
+import math
 import torch
 import torch.nn as nn
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Literal, Union
-from pathlib import Path
 import numpy as np
 from tqdm import tqdm
+from torch.profiler import record_function
 
 from equiflex.prep.geometry import place_cb_ideal
 from equiflex.inference.guidance import GuidanceConfig, TweedieGuidance
@@ -34,11 +35,11 @@ class SDEConfig:
     """Drift-free stochastic perturbation on top of the deterministic Euler step.
 
     The standard Euler update y_{t+dt} = y_t + v*dt is augmented with isotropic
-    Gaussian noise:
-        y_{t+dt} = y_t + v*dt + sqrt(2*dt*w(t)*sigma) * eps,
-    where w(t) = (1-t)/(t + eps_w), zeroed at t >= w_cutoff to avoid noise near
-    the data endpoint. sigma scales the noise amplitude; sigma=0 reduces to the
-    deterministic ODE.
+    Gaussian noise whose variance is the exact integral of 2*sigma*w(s) over the
+    step [t0, t1], t1 = min(t0+dt, w_cutoff):
+        var = 2*sigma*((1+eps_w)*log((t1+eps_w)/(t0+eps_w)) - (t1-t0)),
+    where w(s) = (1-s)/(s + eps_w); no noise for t0 >= w_cutoff (avoids noise
+    near the data endpoint). sigma=0 reduces to the deterministic ODE.
 
     Note: ml-simplefold also adds a `w(t) * score(x_t)` drift term derived from
     the linear-interpolant marginal score. We omit that term — empirically it
@@ -46,8 +47,30 @@ class SDEConfig:
     competes with our Tweedie physics guidance, distorting aromatics. The pure
     noise injection here suffices to add diversity without degrading geometry.
 
-    Fixed atoms (receptor backbone + CB) get no noise — the fixed-mask
-    projection in the sampler zeros the update on those atoms.
+    Frozen atoms (receptor backbone + CB, and missing receptor atoms whose
+    coordinates are placeholders) get neither drift nor noise.
+
+    `score_drift=True` replaces the drift-free kick with the marginal-preserving
+    Ornstein-Uhlenbeck step the interpolant actually implies. For x_t = t*x_1 +
+    (1-t)*x_0 with x_0 ~ N(mu, s0^2 I), the marginal score is algebraic in the
+    predicted velocity (no extra NFE):
+
+        x1_hat = x_t + (1-t)*v
+        m      = t*x1_hat + (1-t)*mu          # marginal mean
+        grad log p_t(x_t) = -(x_t - m) / ((1-t)^2 * s0^2)
+
+    With diffusion lambda(t) = 2*sigma*s0^2*w(t), the marginal-preserving SDE
+    dx = [v + (lambda/2)*grad log p_t] dt + sqrt(lambda) dW has, over a step, the
+    exact OU solution (s0^2 cancels in the drift, survives in the noise):
+
+        c = sigma * log((t1+eps_w)/(t0+eps_w))
+        x <- m + (x - m)*exp(-c) + N(0, (1-t1)^2 * s0^2 * (1-exp(-2c)))
+
+    The exponential form is unconditionally stable, unlike an Euler drift step
+    (w(t) ~ 1/eps_w near t=0 blows up at dt=0.05). Noise vanishes as t->1 on its
+    own, so w_cutoff is unused in this mode. The drift-free mode (default) is the
+    old behaviour: isotropic kicks that the mean-field velocity re-contracts by
+    (1-t_end)/(1-t) -> 0, so they barely change the sample.
 
     `mode` selects which subsystem receives noise:
         'both'     — receptor (mobile atoms) + ligand (default).
@@ -63,6 +86,51 @@ class SDEConfig:
     eps_w: float = 0.01  # epsilon in w(t) denominator (controls noise envelope shape)
     w_cutoff: float = 0.99  # zero noise above this t (avoid endpoint blow-up)
     mode: Literal["both", "receptor", "ligand"] = "both"
+    score_drift: bool = False  # marginal-preserving OU step instead of bare noise
+
+
+@dataclass
+class BranchConfig:
+    """Mid-flight branching: diversify by splitting trajectories, not by noise.
+
+    At the first timestep with t >= at_t, every live trajectory is duplicated
+    `factor` times. Copy 0 is left untouched; each other copy gets a random
+    rotation of the ligand about its own centroid plus a Gaussian translation.
+    Both copies are then carried to t=1 in one batch, so the first half of the
+    path is computed once and the cost is (at_t)*B + (1-at_t)*B*factor steps
+    instead of B*factor full trajectories.
+
+    Rotating the in-flight state rotates signal and noise together. The prior is
+    isotropic, so a rotated noise draw is an equally valid noise draw: this is
+    distributionally the same as rotating the clean estimate and resampling the
+    noise, but without a backward jump.
+
+    `at_t` matters: the noise scale at time t is (1-t)*ligand_prior_sigma, and a
+    perturbation only survives if it displaces atoms by more than that. At t=0.5
+    with sigma 4 A the threshold is ~2 A, so full rotations survive and small
+    ones are absorbed. Measured: at t=0.3 hypothesis survival halves.
+    """
+
+    enabled: bool = False
+    at_t: float = 0.5
+    factor: int = 2           # copies per trajectory, including the original
+    max_rot_deg: float = 180.0
+    trans_sigma: float = 1.0  # Angstrom
+
+
+def _random_rotations(n: int, max_deg: float, device, dtype) -> torch.Tensor:
+    """n uniform random rotation matrices with angle <= max_deg."""
+    axis = torch.randn(n, 3, device=device, dtype=dtype)
+    axis = axis / axis.norm(dim=-1, keepdim=True).clamp(min=1e-8)
+    angle = torch.rand(n, device=device, dtype=dtype) * (max_deg * math.pi / 180.0)
+    K = torch.zeros(n, 3, 3, device=device, dtype=dtype)
+    K[:, 0, 1], K[:, 0, 2] = -axis[:, 2], axis[:, 1]
+    K[:, 1, 0], K[:, 1, 2] = axis[:, 2], -axis[:, 0]
+    K[:, 2, 0], K[:, 2, 1] = -axis[:, 1], axis[:, 0]
+    eye = torch.eye(3, device=device, dtype=dtype).expand(n, 3, 3)
+    s = angle.view(n, 1, 1).sin()
+    c = angle.view(n, 1, 1).cos()
+    return eye + s * K + (1 - c) * (K @ K)
 
 
 def get_time_schedule(
@@ -76,7 +144,7 @@ def get_time_schedule(
         num_steps: Number of integration steps
         schedule: Time scheduling strategy
             - 'uniform': Uniform spacing in [0, 1]
-            - 'log': Log-spaced (more steps near t=0 where changes are larger)
+            - 'log': Log-spaced (dense near t=1, coarse near t=0)
 
     Returns:
         Tensor of shape [num_steps + 1] with time values from 0 to 1
@@ -155,13 +223,23 @@ class FlowMatchingSampler:
         else:
             rec_missing_mask = rec_missing_mask.bool()
 
-        rec_constraint_matrix = data.get("rec_constraint_matrix")
-        if rec_constraint_matrix is None:
-            rec_constraint_matrix = torch.zeros(N_rec, N_rec, 1, dtype=torch.float32)
-
-        lig_constraint_matrix = data.get("lig_constraint_matrix")
-        if lig_constraint_matrix is None:
-            lig_constraint_matrix = torch.zeros(N_lig, N_lig, 1, dtype=torch.float32)
+        # No zeros fallback: prep raises on a missing constraint matrix, so every
+        # featurised system has one. An all-zero matrix is a valid "no info" pair
+        # feature for the model but means "every bond must be 0 A long" to the
+        # physics guidance, which reads the same tensor as literal distance
+        # bounds. Substituting zeros here converts missing data into a silent
+        # geometry collapse; a KeyError is the correct outcome.
+        for key in ("rec_constraint_matrix", "lig_constraint_matrix"):
+            if data.get(key) is None:
+                raise KeyError(
+                    f"{key} is missing from the inference data. It is a required "
+                    "input (pair feature for the model, distance bounds for the "
+                    "physics guidance). Load systems via "
+                    "run_inference.load_system_data, which reads the matrices "
+                    "prep writes into pocket_features.pt / ligand_features.pt."
+                )
+        rec_constraint_matrix = data["rec_constraint_matrix"]
+        lig_constraint_matrix = data["lig_constraint_matrix"]
 
         return {
             # System-level [1, ...] — chemistry trunk inputs
@@ -193,7 +271,7 @@ class FlowMatchingSampler:
     ):
         """
         Initialize noise coordinates, matching _prepare_flow_matching in trainer.py:
-          - Backbone + CB: fixed at GT (CB reconstructed from ideal geometry)
+          - Backbone + CB: fixed at GT (CB keeps its GT coordinates)
           - Sidechain (non-CB): N(ideal CB position, I)
           - Ligand: N(0, I)
         """
@@ -278,7 +356,13 @@ class FlowMatchingSampler:
             )
             lig_coords = _randn((B, N_lig, 3)) * lig_sigma
 
-        return rec_coords, lig_coords
+        prior = {
+            "rec_mu": atom_noise_center.unsqueeze(0),  # [1, N_rec, 3]
+            "lig_mu": torch.zeros(1, 1, 3, device=device),  # pocket-COM frame
+            "rec_sigma": float(sc_sigma),
+            "lig_sigma": float(lig_sigma),
+        }
+        return rec_coords, lig_coords, prior
 
     @torch.no_grad()
     def sample(
@@ -291,17 +375,21 @@ class FlowMatchingSampler:
         return_trajectory: bool = True,
         guidance: Optional[GuidanceConfig] = None,
         sde: Optional[SDEConfig] = None,
+        branch: Optional[BranchConfig] = None,
+        progress: bool = True,
     ) -> Dict[str, torch.Tensor]:
         """
         Generate structures by integrating the flow.
 
         Args:
-            data: Processed data from InferenceProcessor (unbatched)
+            data: Processed system data (unbatched), as returned by
+                run_inference.load_system_data
             num_samples: Number of samples to generate. Ignored if seed is a list.
             num_steps: Number of Euler integration steps
             schedule: 'uniform' or 'log'
             seed: Int (base seed, sample i uses seed+i) or list of ints.
             return_trajectory: Whether to return full coordinate trajectory
+            progress: Show the per-step tqdm bar (off for many-system screens)
 
         Returns:
             - rec_coords_final: [B, N_rec, 3]
@@ -322,47 +410,64 @@ class FlowMatchingSampler:
             B = num_samples if num_samples is not None else 10
             seeds = None
 
+        branching = branch is not None and branch.enabled and branch.factor > 1
+        if branching and return_trajectory:
+            raise ValueError(
+                "branching changes the batch size mid-path, so a single stacked "
+                "trajectory tensor cannot be returned; call with "
+                "return_trajectory=False"
+            )
+        branched = False
+
         data = {
             k: v.to(self.device) if isinstance(v, torch.Tensor) else v
             for k, v in data.items()
         }
 
-        batch = self._build_batch(data, B)
-        batch = {k: v.to(self.device) for k, v in batch.items()}
+        with record_function("flex::build_batch"):
+            batch = self._build_batch(data, B)
+            batch = {k: v.to(self.device) for k, v in batch.items()}
 
-        rec_coords, lig_coords = self._init_coords(data, B, seeds)
+        with record_function("flex::init_coords"):
+            rec_coords, lig_coords, prior = self._init_coords(data, B, seeds)
         rec_backbone_mask_3d = batch["rec_backbone_mask"].unsqueeze(-1)  # [B, N_rec, 1]
         rec_cb_mask_3d = batch["rec_cb_mask"].unsqueeze(-1)  # [B, N_rec, 1]
         rec_fixed_mask_3d = (
             rec_backbone_mask_3d + rec_cb_mask_3d
         )  # backbone + CB frozen
+        # Missing atoms hold placeholder coordinates: never move them either.
+        rec_missing_mask_3d = batch["rec_missing_mask"].unsqueeze(-1).float()
+        rec_frozen_3d = torch.clamp(rec_fixed_mask_3d + rec_missing_mask_3d, max=1.0)
 
         guidance_engine: Optional[TweedieGuidance] = None
         if guidance is not None and guidance.enabled:
-            guidance_engine = TweedieGuidance(
-                config=guidance,
-                batch=batch,
-                rec_fixed_mask_3d=rec_fixed_mask_3d,
-                device=self.device,
-                rec_torsion_indices=data.get("rec_sp2_torsion_indices"),
-                lig_torsion_indices=data.get("lig_sp2_torsion_indices"),
-            )
+            with record_function("flex::guidance_setup"):
+                guidance_engine = TweedieGuidance(
+                    config=guidance,
+                    batch=batch,
+                    rec_fixed_mask_3d=rec_fixed_mask_3d,
+                    device=self.device,
+                    rec_torsion_indices=data.get("rec_sp2_torsion_indices"),
+                    lig_torsion_indices=data.get("lig_sp2_torsion_indices"),
+                    lig_chiral_indices=data.get("lig_chiral_indices"),
+                )
 
         # Pre-compute chemistry features once (V4 two-trunk architecture)
-        q_chem, p_chem = self.model.forward_chemistry(
-            rec_atom_feats=batch["rec_atom_feats"],
-            rec_atom_ref_coords=batch["rec_atom_ref_coords"],
-            rec_constraint_matrix=batch["rec_constraint_matrix"],
-            rec_bond_feats=batch["rec_bond_feats"],
-            rec_uid_vec=batch["rec_uid_vec"],
-            esm_embeddings=batch["esm_embeddings"],
-            lig_atom_feats=batch["lig_atom_feats"],
-            lig_atom_ref_coords=batch["lig_atom_ref_coords"],
-            lig_constraint_matrix=batch["lig_constraint_matrix"],
-            lig_bond_feats=batch["lig_bond_feats"],
-            lig_uid_vec=batch["lig_uid_vec"],
-            unimol_embeddings=batch["unimol_embeddings"],
-        )
+        with record_function("flex::forward_chemistry"):
+            q_chem, p_chem = self.model.forward_chemistry(
+                rec_atom_feats=batch["rec_atom_feats"],
+                rec_atom_ref_coords=batch["rec_atom_ref_coords"],
+                rec_constraint_matrix=batch["rec_constraint_matrix"],
+                rec_bond_feats=batch["rec_bond_feats"],
+                rec_uid_vec=batch["rec_uid_vec"],
+                esm_embeddings=batch["esm_embeddings"],
+                lig_atom_feats=batch["lig_atom_feats"],
+                lig_atom_ref_coords=batch["lig_atom_ref_coords"],
+                lig_constraint_matrix=batch["lig_constraint_matrix"],
+                lig_bond_feats=batch["lig_bond_feats"],
+                lig_uid_vec=batch["lig_uid_vec"],
+                unimol_embeddings=batch["unimol_embeddings"],
+            )
 
         timesteps = get_time_schedule(num_steps, schedule).to(self.device)
 
@@ -370,83 +475,170 @@ class FlowMatchingSampler:
             rec_trajectory = [rec_coords.cpu().clone()]
             lig_trajectory = [lig_coords.cpu().clone()]
 
-        for i in tqdm(range(num_steps), desc="Integrating flow"):
+        for i in tqdm(range(num_steps), desc="Integrating flow", disable=not progress):
+            if branching and not branched and float(timesteps[i]) >= branch.at_t:
+                with record_function("flex::branch"):
+                    n_extra = B * (branch.factor - 1)
+                    rot = _random_rotations(
+                        n_extra, branch.max_rot_deg, self.device, lig_coords.dtype
+                    )
+                    extra = lig_coords.repeat(branch.factor - 1, 1, 1)
+                    centroid = extra.mean(dim=1, keepdim=True)
+                    trans = (
+                        torch.randn(n_extra, 3, device=self.device, dtype=extra.dtype)
+                        * branch.trans_sigma
+                    )
+                    extra = (
+                        torch.einsum("nij,naj->nai", rot, extra - centroid)
+                        + centroid
+                        + trans.unsqueeze(1)
+                    )
+                    lig_coords = torch.cat([lig_coords, extra], dim=0)
+                    rec_coords = rec_coords.repeat(branch.factor, 1, 1)
+                    B = B * branch.factor
+                    batch = {
+                        k: v.to(self.device)
+                        for k, v in self._build_batch(data, B).items()
+                    }
+                    rec_fixed_mask_3d = (
+                        batch["rec_backbone_mask"].unsqueeze(-1)
+                        + batch["rec_cb_mask"].unsqueeze(-1)
+                    )
+                    rec_frozen_3d = torch.clamp(
+                        rec_fixed_mask_3d
+                        + batch["rec_missing_mask"].unsqueeze(-1).float(),
+                        max=1.0,
+                    )
+                    if guidance_engine is not None:
+                        guidance_engine = TweedieGuidance(
+                            config=guidance,
+                            batch=batch,
+                            rec_fixed_mask_3d=rec_fixed_mask_3d,
+                            device=self.device,
+                            rec_torsion_indices=data.get("rec_sp2_torsion_indices"),
+                            lig_torsion_indices=data.get("lig_sp2_torsion_indices"),
+                            lig_chiral_indices=data.get("lig_chiral_indices"),
+                        )
+                    if seeds is not None:
+                        seeds = [s for _ in range(branch.factor) for s in seeds]
+                    branched = True
             t = timesteps[i].expand(B)
             dt = timesteps[i + 1] - timesteps[i]
 
-            output = self.model(
-                rec_atom_feats=batch["rec_atom_feats"],
-                rec_atom_coords=rec_coords,
-                rec_atom_ref_coords=batch["rec_atom_ref_coords"],
-                rec_constraint_matrix=batch["rec_constraint_matrix"],
-                rec_bond_feats=batch["rec_bond_feats"],
-                rec_uid_vec=batch["rec_uid_vec"],
-                rec_atom_mask=batch["rec_atom_mask"],
-                rec_backbone_mask=batch["rec_backbone_mask"],
-                esm_embeddings=batch["esm_embeddings"],
-                lig_atom_feats=batch["lig_atom_feats"],
-                lig_atom_coords=lig_coords,
-                lig_atom_ref_coords=batch["lig_atom_ref_coords"],
-                lig_constraint_matrix=batch["lig_constraint_matrix"],
-                lig_bond_feats=batch["lig_bond_feats"],
-                lig_uid_vec=batch["lig_uid_vec"],
-                lig_atom_mask=batch["lig_atom_mask"],
-                unimol_embeddings=batch["unimol_embeddings"],
-                rec_missing_mask=batch["rec_missing_mask"],
-                t=t,
-                q_chem=q_chem,
-                p_chem=p_chem,
-            )
+            with record_function("flex::model_forward"):
+                output = self.model(
+                    rec_atom_feats=batch["rec_atom_feats"],
+                    rec_atom_coords=rec_coords,
+                    rec_atom_ref_coords=batch["rec_atom_ref_coords"],
+                    rec_constraint_matrix=batch["rec_constraint_matrix"],
+                    rec_bond_feats=batch["rec_bond_feats"],
+                    rec_uid_vec=batch["rec_uid_vec"],
+                    rec_atom_mask=batch["rec_atom_mask"],
+                    rec_backbone_mask=batch["rec_backbone_mask"],
+                    esm_embeddings=batch["esm_embeddings"],
+                    lig_atom_feats=batch["lig_atom_feats"],
+                    lig_atom_coords=lig_coords,
+                    lig_atom_ref_coords=batch["lig_atom_ref_coords"],
+                    lig_constraint_matrix=batch["lig_constraint_matrix"],
+                    lig_bond_feats=batch["lig_bond_feats"],
+                    lig_uid_vec=batch["lig_uid_vec"],
+                    lig_atom_mask=batch["lig_atom_mask"],
+                    unimol_embeddings=batch["unimol_embeddings"],
+                    rec_missing_mask=batch["rec_missing_mask"],
+                    t=t,
+                    q_chem=q_chem,
+                    p_chem=p_chem,
+                )
 
             rec_flow = output["rec_flow"]  # [B, N_rec, 3]
             lig_flow = output["lig_flow"]  # [B, N_lig, 3]
 
+            # Clean estimate from the raw (un-guided) velocity: the score identity
+            # holds for the model's own velocity, not the guided one.
+            if sde is not None and sde.enabled and sde.score_drift:
+                one_minus_t0 = (1 - t).view(B, 1, 1)
+                rec_x1_raw = rec_coords + one_minus_t0 * rec_flow
+                lig_x1_raw = lig_coords + one_minus_t0 * lig_flow
+
             # cov-A physics guidance on the clean x_1 estimate (paper Sec 3.3).
             if guidance_engine is not None and guidance_engine.is_active(t):
-                one_minus_t_true = (1 - t).view(B, 1, 1)
-                rec_x1_hat = rec_coords + one_minus_t_true * rec_flow
-                lig_x1_hat = lig_coords + one_minus_t_true * lig_flow
+                with record_function("flex::guidance"):
+                    one_minus_t_true = (1 - t).view(B, 1, 1)
+                    rec_x1_hat = rec_coords + one_minus_t_true * rec_flow
+                    lig_x1_hat = lig_coords + one_minus_t_true * lig_flow
 
-                # Snap fixed atoms (backbone + CB) back to their actual positions —
-                # rec_coords for them is GT due to per-step projection. Without this,
-                # free atoms' bond/vdW gradients are anchored to drifted fixed neighbors.
-                rec_x1_hat = (
-                    rec_fixed_mask_3d * rec_coords
-                    + (1 - rec_fixed_mask_3d) * rec_x1_hat
-                )
-
-                if guidance.sim_mc_guidance:
-                    # Gradient-free: correct x_1, convert back through the Tweedie map.
-                    one_minus_t_denom = one_minus_t_true.clamp(
-                        min=guidance.one_minus_t_min
+                    # Snap fixed atoms (backbone + CB) back to their actual positions —
+                    # rec_coords for them is GT due to per-step projection. Without this,
+                    # free atoms' bond/vdW gradients are anchored to drifted fixed neighbors.
+                    rec_x1_hat = (
+                        rec_fixed_mask_3d * rec_coords
+                        + (1 - rec_fixed_mask_3d) * rec_x1_hat
                     )
-                    rec_x1_hat, lig_x1_hat = guidance_engine.sim_mc_correct(
-                        rec_x1_hat, lig_x1_hat
-                    )
-                    rec_flow = (rec_x1_hat - rec_coords) / one_minus_t_denom
-                    lig_flow = (lig_x1_hat - lig_coords) / one_minus_t_denom
-                else:
-                    # cov-A: add the guidance VF directly to the predicted velocity.
-                    rec_g, lig_g = guidance_engine.guidance_velocity(
-                        rec_x1_hat, lig_x1_hat, t
-                    )
-                    rec_flow = rec_flow + rec_g
-                    lig_flow = lig_flow + lig_g
 
-            # Backbone + CB stay fixed; only other sidechain and ligand move
-            rec_coords = rec_coords + rec_flow * dt * (1 - rec_fixed_mask_3d)
-            lig_coords = lig_coords + lig_flow * dt
+                    if guidance.sim_mc_guidance:
+                        # Gradient-free: correct x_1, convert back through the Tweedie map.
+                        one_minus_t_denom = one_minus_t_true.clamp(
+                            min=guidance.one_minus_t_min
+                        )
+                        rec_x1_hat, lig_x1_hat = guidance_engine.sim_mc_correct(
+                            rec_x1_hat, lig_x1_hat
+                        )
+                        rec_flow = (rec_x1_hat - rec_coords) / one_minus_t_denom
+                        lig_flow = (lig_x1_hat - lig_coords) / one_minus_t_denom
+                    else:
+                        # cov-A: add the guidance VF directly to the predicted velocity.
+                        rec_g, lig_g = guidance_engine.guidance_velocity(
+                            rec_x1_hat, lig_x1_hat, t
+                        )
+                        rec_flow = rec_flow + rec_g
+                        lig_flow = lig_flow + lig_g
 
-            # Drift-free SDE perturbation: y += sqrt(2*dt*w(t)*sigma) * eps,
-            # w(t) = (1-t)/(t+eps_w). sigma=0 or t>=w_cutoff → no noise.
-            if sde is not None and sde.enabled and sde.sigma > 0:
-                t_scalar = float(t.mean().item())
-                if t_scalar < sde.w_cutoff:
-                    w = (1.0 - t_scalar) / (t_scalar + sde.eps_w)
-                    noise_amp = (2.0 * float(dt) * w * sde.sigma) ** 0.5
+            # Backbone + CB (and missing atoms) stay fixed; only other sidechain and ligand move
+            with record_function("flex::coord_update"):
+                rec_coords = rec_coords + rec_flow * dt * (1 - rec_frozen_3d)
+                lig_coords = lig_coords + lig_flow * dt
+
+            # Drift-free SDE perturbation with the exact step variance
+            # int_{t0}^{t1} 2*sigma*w(s) ds, w(s) = (1-s)/(s+eps_w), t1 capped at
+            # w_cutoff. sigma=0 or t0>=w_cutoff -> no noise.
+            # Never on the final step: nothing runs after it, so that noise would
+            # be an uncorrected random kick on the returned coordinates — no
+            # velocity update and no guidance to absorb it.
+            is_last_step = i == num_steps - 1
+            if (
+                sde is not None and sde.enabled and sde.sigma > 0
+                and sde.score_drift and not is_last_step
+            ):
+                # Marginal-preserving OU step at t1 (see SDEConfig docstring).
+                t0 = float(timesteps[i])
+                t1 = float(timesteps[i + 1])
+                c = sde.sigma * np.log((t1 + sde.eps_w) / (t0 + sde.eps_w))
+                decay = float(np.exp(-c))
+                noise_frac = float(max(1.0 - np.exp(-2.0 * c), 0.0)) ** 0.5
+                if sde.mode in ("both", "receptor"):
+                    m = t1 * rec_x1_raw + (1 - t1) * prior["rec_mu"]
+                    std = (1 - t1) * prior["rec_sigma"] * noise_frac
+                    ou = m + (rec_coords - m) * decay + torch.randn_like(rec_coords) * std
+                    rec_coords = (
+                        rec_frozen_3d * rec_coords + (1 - rec_frozen_3d) * ou
+                    )
+                if sde.mode in ("both", "ligand"):
+                    m = t1 * lig_x1_raw + (1 - t1) * prior["lig_mu"]
+                    std = (1 - t1) * prior["lig_sigma"] * noise_frac
+                    lig_coords = (
+                        m + (lig_coords - m) * decay + torch.randn_like(lig_coords) * std
+                    )
+            elif sde is not None and sde.enabled and sde.sigma > 0 and not is_last_step:
+                t0 = float(timesteps[i])
+                if t0 < sde.w_cutoff:
+                    t1 = min(float(timesteps[i + 1]), sde.w_cutoff)
+                    var = 2.0 * sde.sigma * (
+                        (1.0 + sde.eps_w) * np.log((t1 + sde.eps_w) / (t0 + sde.eps_w)) - (t1 - t0)
+                    )
+                    noise_amp = max(var, 0.0) ** 0.5
                     if sde.mode in ("both", "receptor"):
                         rec_noise = torch.randn_like(rec_coords) * noise_amp
-                        rec_coords = rec_coords + rec_noise * (1 - rec_fixed_mask_3d)
+                        rec_coords = rec_coords + rec_noise * (1 - rec_frozen_3d)
                     if sde.mode in ("both", "ligand"):
                         lig_noise = torch.randn_like(lig_coords) * noise_amp
                         lig_coords = lig_coords + lig_noise
@@ -463,6 +655,24 @@ class FlowMatchingSampler:
             "seeds": seeds,
         }
 
+        # Record the same final-coordinate physics energy used by guidance so
+        # downstream ranking/reporting does not have to reconstruct its context.
+        if guidance_engine is not None:
+            with torch.no_grad():
+                final_x = torch.cat([rec_coords, lig_coords], dim=1)
+                final_ctx = guidance_engine._context(final_x)
+                results["physics_loss"] = guidance_engine._physics_energy(final_ctx).cpu()
+
+            clip_frac = guidance_engine.clip_fraction()
+            if clip_frac is not None:
+                results["guidance_clip_fraction"] = clip_frac
+                if clip_frac > 0.5:
+                    logger.warning(
+                        "guidance: %.0f%% of per-atom gradients hit grad_clip=%.3g — "
+                        "grad_clip, not scale=%.3g, is setting guidance strength",
+                        100 * clip_frac, guidance.grad_clip, guidance.scale,
+                    )
+
         if return_trajectory:
             results["rec_trajectory"] = torch.stack(
                 rec_trajectory, dim=1
@@ -472,295 +682,3 @@ class FlowMatchingSampler:
             )  # [B, T, N_lig, 3]
 
         return results
-
-    def relax_results(
-        self,
-        results: Dict[str, torch.Tensor],
-        system_dir: Union[str, Path],
-        sample_indices: Optional[List[int]] = None,
-        output_dir: Optional[Union[str, Path]] = None,
-        **relax_kwargs,
-    ) -> Dict[str, torch.Tensor]:
-        """Post-process sampling results with MMFF energy minimisation.
-
-        Calls :func:`inference.relaxation.relax_complex` per sample.
-        Only ligand coordinates are updated (protein is frozen during minimisation).
-
-        Args:
-            results: Dict returned by :meth:`sample`.
-            system_dir: Path to the featurised system directory.
-            sample_indices: Which samples to relax (default: all).
-            output_dir: Base directory for per-sample CIF output.
-            **relax_kwargs: Forwarded to :func:`relax_complex`
-                (e.g. ``max_iterations``).
-
-        Returns:
-            The same *results* dict with ``lig_coords_final`` updated in-place.
-        """
-        from equiflex.inference.relaxation import relax_complex
-
-        B = results["rec_coords_final"].shape[0]
-        if sample_indices is None:
-            sample_indices = list(range(B))
-
-        backbone_com = results["backbone_com"]
-        energies = []
-
-        for b in sample_indices:
-            out = None
-            if output_dir is not None:
-                out = Path(output_dir) / f"sample_{b}"
-
-            try:
-                relaxed = relax_complex(
-                    system_dir=system_dir,
-                    rec_coords=results["rec_coords_final"][b],
-                    lig_coords=results["lig_coords_final"][b],
-                    backbone_com=backbone_com,
-                    output_dir=out,
-                    **relax_kwargs,
-                )
-                results["lig_coords_final"][b] = relaxed["lig_coords"]
-                energies.append(
-                    {
-                        "sample": b,
-                        "initial_energy": relaxed["initial_energy_kcal_mol"],
-                        "final_energy": relaxed["final_energy_kcal_mol"],
-                    }
-                )
-            except Exception as e:
-                logger.warning("Relaxation failed for sample %d: %s", b, e)
-
-        results["relaxation_energies"] = energies
-        return results
-
-
-def run_inference(
-    model_path: str,
-    data_path: str,
-    output_path: str,
-    num_samples: int = 10,
-    num_steps: int = 100,
-    schedule: Literal["uniform", "log"] = "uniform",
-    seed: Optional[Union[int, List[int]]] = None,
-    device: str = "cuda",
-    return_trajectory: bool = True,
-    relax: bool = False,
-    system_dir: Optional[str] = None,
-    relax_max_iterations: int = 200,
-    guidance: Optional[GuidanceConfig] = None,
-) -> Path:
-    """
-    Run inference and save results.
-
-    Args:
-        model_path: Path to Lightning checkpoint (.ckpt)
-        data_path: Path to processed inference data (.pt file)
-        output_path: Directory to save results
-        num_samples: Number of samples to generate (ignored if seed is a list)
-        num_steps: Number of integration steps
-        schedule: Time scheduling strategy ('uniform' or 'log')
-        seed: Random seed or list of seeds
-        device: Device to run on
-        return_trajectory: Whether to store the full integration trajectory
-        relax: Run MMFF energy minimisation after sampling
-        system_dir: Path to featurised system directory (for relaxation
-            and CIF writing). Defaults to ``Path(data_path).parent``.
-        relax_max_iterations: MMFF minimisation steps (default 200)
-
-    Returns:
-        Path to output directory
-    """
-    from equiflex.model import FlexTrainer
-
-    trainer_module = FlexTrainer.load_from_checkpoint(model_path, map_location="cpu")
-    model = trainer_module.model
-
-    data = torch.load(data_path, map_location="cpu", weights_only=False)
-
-    metadata_path = Path(data_path).parent / "metadata.pt"
-    if metadata_path.exists():
-        data.update(torch.load(metadata_path, map_location="cpu", weights_only=False))
-
-    sampler = FlowMatchingSampler(model, device=device)
-    results = sampler.sample(
-        data=data,
-        num_samples=num_samples,
-        num_steps=num_steps,
-        schedule=schedule,
-        seed=seed,
-        return_trajectory=return_trajectory,
-        guidance=guidance,
-    )
-
-    output_path = Path(output_path)
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    sys_dir = Path(system_dir) if system_dir else Path(data_path).parent
-
-    if relax:
-        from equiflex.inference.relaxation import relax_complex, write_complex_cif
-
-        pocket_feats = torch.load(sys_dir / "pocket_features.pt", weights_only=False)
-        ligand_feats = torch.load(sys_dir / "ligand_features.pt", weights_only=False)
-        backbone_com = results["backbone_com"]
-        B = results["rec_coords_final"].shape[0]
-
-        for b in range(B):
-            sample_dir = output_path / f"sample_{b}"
-            sample_dir.mkdir(parents=True, exist_ok=True)
-
-            write_complex_cif(
-                pocket_feats,
-                ligand_feats,
-                results["rec_coords_final"][b],
-                results["lig_coords_final"][b],
-                backbone_com,
-                sample_dir / "predicted.cif",
-            )
-
-            try:
-                relaxed = relax_complex(
-                    system_dir=sys_dir,
-                    rec_coords=results["rec_coords_final"][b],
-                    lig_coords=results["lig_coords_final"][b],
-                    backbone_com=backbone_com,
-                    output_dir=sample_dir,
-                    max_iterations=relax_max_iterations,
-                    write_structures=True,
-                )
-                results["lig_coords_final"][b] = relaxed["lig_coords"]
-                logger.info(
-                    "Sample %d relaxed: %.2f -> %.2f kcal/mol",
-                    b,
-                    relaxed["initial_energy_kcal_mol"],
-                    relaxed["final_energy_kcal_mol"],
-                )
-            except Exception as e:
-                logger.warning("Relaxation failed for sample %d: %s", b, e)
-
-    torch.save(results, output_path / "inference_results.pt")
-    return output_path
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Run flow matching inference")
-    parser.add_argument("--model", type=str, required=True)
-    parser.add_argument("--data", type=str, required=True)
-    parser.add_argument("--output", type=str, required=True)
-    parser.add_argument("--num-samples", type=int, default=10)
-    parser.add_argument("--num-steps", type=int, default=100)
-    parser.add_argument(
-        "--schedule", type=str, default="uniform", choices=["uniform", "log"]
-    )
-    parser.add_argument("--seed", type=int, default=None)
-    parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument(
-        "--return-trajectory",
-        action="store_true",
-        default=True,
-        help="Store full integration trajectory (default: True)",
-    )
-    parser.add_argument(
-        "--no-trajectory",
-        dest="return_trajectory",
-        action="store_false",
-        help="Skip storing the trajectory to save memory",
-    )
-
-    relax_group = parser.add_argument_group(
-        "relaxation", "MMFF energy minimisation options"
-    )
-    relax_group.add_argument(
-        "--relax",
-        action="store_true",
-        help="Run MMFF energy minimisation after sampling",
-    )
-    relax_group.add_argument(
-        "--system-dir",
-        type=str,
-        default=None,
-        help="Path to featurised system dir (default: parent of --data)",
-    )
-    relax_group.add_argument(
-        "--relax-max-iterations",
-        type=int,
-        default=200,
-        help="MMFF minimisation steps (default: 200)",
-    )
-
-    guide_group = parser.add_argument_group(
-        "guidance", "Tweedie x_1 physics guidance during integration"
-    )
-    guide_group.add_argument(
-        "--guidance", action="store_true", help="Enable Tweedie x_1 physics guidance"
-    )
-    guide_group.add_argument(
-        "--guide-t-start",
-        type=float,
-        default=0.3,
-        help="Skip guidance below this t (default: 0.3)",
-    )
-    guide_group.add_argument(
-        "--guide-scale",
-        type=float,
-        default=1.0,
-        help="cov-A guidance scale lambda; tune per system (default: 1.0)",
-    )
-    guide_group.add_argument(
-        "--guide-schedule",
-        type=str,
-        default="linear_decay",
-        choices=["const", "linear_decay", "cosine_decay", "exp_decay"],
-        help="Decaying-in-t cov-A schedule (default: linear_decay)",
-    )
-    guide_group.add_argument("--guide-bond-coef", type=float, default=1.0)
-    guide_group.add_argument("--guide-angle-coef", type=float, default=1.0)
-    guide_group.add_argument("--guide-vdw-coef", type=float, default=5.0)
-    guide_group.add_argument(
-        "--guide-torsion-coef",
-        type=float,
-        default=1.0,
-        help="Aromatic-ring planarity weight (0 disables)",
-    )
-    guide_group.add_argument(
-        "--guide-grad-clip",
-        type=float,
-        default=0.0,
-        help="Per-atom max ||g|| on the guidance VF (Å/step); 0 disables",
-    )
-
-    args = parser.parse_args()
-
-    guidance_cfg = None
-    if args.guidance:
-        guidance_cfg = GuidanceConfig(
-            enabled=True,
-            t_start=args.guide_t_start,
-            scale=args.guide_scale,
-            schedule=args.guide_schedule,
-            bond_coef=args.guide_bond_coef,
-            angle_coef=args.guide_angle_coef,
-            vdw_coef=args.guide_vdw_coef,
-            torsion_coef=args.guide_torsion_coef,
-            grad_clip=args.guide_grad_clip,
-        )
-
-    output_path = run_inference(
-        model_path=args.model,
-        data_path=args.data,
-        output_path=args.output,
-        num_samples=args.num_samples,
-        num_steps=args.num_steps,
-        schedule=args.schedule,
-        seed=args.seed,
-        device=args.device,
-        return_trajectory=args.return_trajectory,
-        relax=args.relax,
-        system_dir=args.system_dir,
-        relax_max_iterations=args.relax_max_iterations,
-        guidance=guidance_cfg,
-    )
-    print(f"Results saved to: {output_path}")

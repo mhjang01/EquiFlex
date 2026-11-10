@@ -1,15 +1,18 @@
 """Run PoseBusters checks on Flex inference outputs.
 
 The evaluator scans a Flex output root containing one directory per complex and
-``sample_*`` subdirectories.  It prefers relaxed structures
-(``ligand_relaxed.sdf`` / ``complex_relaxed.cif``), falling back to the
-unrelaxed files when needed.
+``sample_*`` subdirectories, reading ``ligand.sdf`` and ``complex.cif``. Poses
+are evaluated as sampled: there is no post-hoc relaxation step.
+
+This runs the ligand-only ``dock`` checks (no ground-truth pose needed). For
+the redock protocol with RMSD, side-chain RMSD and Vina-ranked selection see
+``scripts/eval_posebusters_redock.py``.
 
 Example:
-    python evaluate_posebusters.py \
-        --output-root /home/mhjang/workspace/flex/test_output_abl \
+    python scripts/evaluate_posebusters.py \
+        --output-root data/posebusters/prepared \
         --limit 10 \
-        --out-csv /home/mhjang/workspace/flex/outputs/posebusters_10.csv
+        --out-csv data/posebusters/posebusters_dock_10.csv
 """
 
 import argparse
@@ -38,20 +41,10 @@ def iter_prediction_pairs(
         )
         for sample_dir in sample_dirs[:max_samples_per_complex]:
             sample_idx = int(sample_dir.name.split("_", 1)[1])
-            relaxed_ligand = sample_dir / "ligand_relaxed.sdf"
-            relaxed_complex = sample_dir / "complex_relaxed.cif"
-            ligand = relaxed_ligand if relaxed_ligand.exists() else sample_dir / "ligand.sdf"
-            complex_file = (
-                relaxed_complex if relaxed_complex.exists() else sample_dir / "complex.cif"
-            )
+            ligand = sample_dir / "ligand.sdf"
+            complex_file = sample_dir / "complex.cif"
             if ligand.exists() and complex_file.exists():
-                yield (
-                    complex_dir.name,
-                    sample_idx,
-                    ligand,
-                    complex_file,
-                    ligand == relaxed_ligand and complex_file == relaxed_complex,
-                )
+                yield complex_dir.name, sample_idx, ligand, complex_file
 
 
 def write_pdb_if_needed(complex_file: Path, tmp_dir: Path) -> Path:
@@ -72,13 +65,12 @@ def evaluate(output_root: Path, limit: int, max_samples_per_complex: int) -> pd.
     rows: List[pd.DataFrame] = []
     with TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)
-        for complex_id, sample_idx, ligand, complex_file, used_relaxed in tqdm(pairs):
+        for complex_id, sample_idx, ligand, complex_file in tqdm(pairs):
             try:
                 mol_cond = write_pdb_if_needed(complex_file, tmp_dir)
                 df = buster.bust(mol_pred=str(ligand), mol_cond=str(mol_cond))
                 df["complex_id"] = complex_id
                 df["sample"] = sample_idx
-                df["used_relaxed"] = used_relaxed
                 df["ligand_path"] = str(ligand)
                 df["complex_path"] = str(complex_file)
                 df["mol_cond_path"] = str(mol_cond)
@@ -86,7 +78,6 @@ def evaluate(output_root: Path, limit: int, max_samples_per_complex: int) -> pd.
                     columns=[
                         "complex_id",
                         "sample",
-                        "used_relaxed",
                         "ligand_path",
                         "complex_path",
                         "mol_cond_path",
@@ -101,7 +92,6 @@ def evaluate(output_root: Path, limit: int, max_samples_per_complex: int) -> pd.
                             {
                                 "complex_id": complex_id,
                                 "sample": sample_idx,
-                                "used_relaxed": used_relaxed,
                                 "ligand_path": str(ligand),
                                 "complex_path": str(complex_file),
                                 "pb_valid": False,
@@ -120,8 +110,7 @@ def summarize(df: pd.DataFrame) -> pd.Series:
     bool_cols = [
         col
         for col in df.columns
-        if col not in {"used_relaxed"}
-        and len(df[col].dropna()) > 0
+        if len(df[col].dropna()) > 0
         and df[col].dropna().map(lambda x: isinstance(x, bool)).all()
     ]
     summary = {
@@ -129,24 +118,16 @@ def summarize(df: pd.DataFrame) -> pd.Series:
         for col in bool_cols
     }
     summary["n"] = len(df)
-    summary["used_relaxed_rate"] = df["used_relaxed"].astype(bool).mean()
     return pd.Series(summary).sort_index()
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--output-root",
-        type=Path,
-        default=Path("/home/mhjang/workspace/flex/test_output_abl"),
-    )
+    parser.add_argument("--output-root", type=Path, required=True,
+                        help="run_inference.py output_root")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--max-samples-per-complex", type=int, default=1)
-    parser.add_argument(
-        "--out-csv",
-        type=Path,
-        default=Path("/home/mhjang/workspace/flex/outputs/posebusters_eval.csv"),
-    )
+    parser.add_argument("--out-csv", type=Path, default=Path("posebusters_eval.csv"))
     parser.add_argument("--summary-csv", type=Path, default=None)
     args = parser.parse_args()
 

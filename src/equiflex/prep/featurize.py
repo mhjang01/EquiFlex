@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn.functional as F
 from typing import List, Dict, Any, Optional
@@ -258,21 +259,33 @@ class UniMolExtractor:
     '''
     Extracts Uni-Mol embeddings for ligands.
     Matches embeddings to parsed atoms by name: {symbol}{canonical_rank+1} (e.g., C1, N2, O3).
+
+    Requires the padding-invariance patch from ``scripts/patch_unimol.sh``:
+    stock unimol_tools lets padded atoms leak into real ones, so a molecule's
+    embedding shifts by ~1e2 (1.1B model) depending on the largest molecule in
+    its batch. With the patch an embedding does not depend on which molecules
+    share its batch, whatever ``batch_size`` (molecules per forward pass).
     '''
 
-    def __init__(self, model_size: str = '1.1B'):
+    def __init__(self, model_size: str = '1.1B', use_cuda: bool = True, batch_size: int = 32):
         import os
         # Suppress tokenizers parallelism warning (UniMol uses multiprocessing for conformer generation)
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
         from unimol_tools import UniMolRepr
+        from unimol_tools.models import transformersv2
+        if not getattr(transformersv2, 'PADDING_INVARIANT', False):
+            raise RuntimeError(
+                'unimol_tools is unpatched, so Uni-Mol v2 embeddings would depend on batch '
+                'padding. Run scripts/patch_unimol.sh (details in scripts/unimol_padding.patch).'
+            )
         params = {
             'data_type': 'molecule',
             'remove_hs': False,
             'model_name': 'unimolv2',
             'model_size': model_size,
         }
-        self.model = UniMolRepr(use_gpu=True, **params)
+        self.model = UniMolRepr(use_gpu=True, use_cuda=use_cuda, batch_size=batch_size, **params)
 
     def get_unimol_atom_names(self, smiles: str) -> Optional[List[str]]:
         '''
@@ -297,107 +310,95 @@ class UniMolExtractor:
         smiles: str,
         parsed_atoms: List[Dict]
     ) -> Optional[torch.Tensor]:
-        '''
-        Extract Uni-Mol embedding for a single ligand, ordered to match parsed atoms.
-
-        Args:
-            smiles: SMILES string
-            parsed_atoms: List of atom dicts from parsing (must have 'name' field)
-
-        Returns:
-            Tensor [n_atoms, embed_dim] ordered to match parsed_atoms by name
-        '''
-        unimol_names = self.get_unimol_atom_names(smiles)
-        if unimol_names is None:
-            print(f"Warning: invalid SMILES: {smiles}")
-            return None
-
-        # Build name -> index mapping for Uni-Mol order
-        unimol_name_to_idx = {name: idx for idx, name in enumerate(unimol_names)}
-
-        # Get parsed atom names
-        parsed_names = [atom['name'] for atom in parsed_atoms]
-
-        # Verify all parsed names exist in Uni-Mol names
-        missing = [name for name in parsed_names if name not in unimol_name_to_idx]
-        if missing:
-            print(f"Warning: atom names not found in Uni-Mol: {missing[:5]}...")
-            return None
-
-        # Get Uni-Mol embeddings
-        output = self.model.get_repr(data=[smiles], return_atomic_reprs=True)
-        atomic_repr = torch.tensor(output['atomic_reprs'][0])
-
-        if len(atomic_repr) != len(unimol_names):
-            print(f"Warning: Uni-Mol returned {len(atomic_repr)} atoms, expected {len(unimol_names)}")
-            return None
-
-        # Reorder embeddings to match parsed_atoms order
-        reordered = torch.zeros(len(parsed_atoms), atomic_repr.shape[1], dtype=atomic_repr.dtype)
-        for i, name in enumerate(parsed_names):
-            unimol_idx = unimol_name_to_idx[name]
-            reordered[i] = atomic_repr[unimol_idx]
-
-        return reordered
+        '''Single-ligand form of :meth:`extract_batch`.'''
+        return self.extract_batch([smiles], [parsed_atoms])[0]
 
     def extract_batch(
         self,
         smiles_list: List[str],
-        parsed_atoms_list: List[List[Dict]]
-    ) -> List[Optional[torch.Tensor]]:
+        parsed_atoms_list: List[List[Dict]],
+        return_status: bool = False,
+    ):
         '''
         Batched extraction for multiple ligands.
+
+        Each embedding is matched to its parsed atoms by canonical atom name, so
+        the parsed atom order need not be Uni-Mol's (RDKit iteration order of
+        the SMILES). Output i is verified to be input i by comparing the atomic
+        numbers Uni-Mol reports for it against the SMILES: unimol_tools batches
+        internally, and a dropped or reordered entry would otherwise shift every
+        later embedding onto the wrong ligand. Invalid SMILES are held out of
+        the Uni-Mol call (unimol_tools raises on them) and reported as None.
 
         Args:
             smiles_list: List of SMILES strings
             parsed_atoms_list: List of atom dicts for each ligand
+            return_status: Also return one status string per ligand
 
         Returns:
-            List of tensors (or None for failures), each ordered to match parsed atoms
+            List of tensors (None for failures) ordered like *smiles_list*.
+            With *return_status*, a tuple ``(tensors, statuses)`` where a status
+            is ``''`` (ok), ``'invalid_smiles'``, ``'too_many_atoms'`` (above
+            Uni-Mol's max_atoms crop, 128), ``'atom_name_mismatch'``
+            (parsed atoms are not the SMILES' atoms) or ``'planar_conformer'``
+            (embedding kept, but Uni-Mol fell back to 2D coordinates).
         '''
-        if not smiles_list:
-            return []
+        n = len(smiles_list)
+        results: List[Optional[torch.Tensor]] = [None] * n
+        statuses: List[str] = ['invalid_smiles'] * n
+        if n == 0:
+            return ([], []) if return_status else []
 
-        # Get atom names for each molecule
-        all_unimol_names = [self.get_unimol_atom_names(s) for s in smiles_list]
+        mols = [Chem.MolFromSmiles(s) for s in smiles_list]
+        valid = [i for i, mol in enumerate(mols) if mol is not None]
+        for i, mol in enumerate(mols):
+            if mol is None:
+                print(f"Warning: invalid SMILES: {smiles_list[i]}")
+        if not valid:
+            return (results, statuses) if return_status else results
 
-        # Batch inference
-        output = self.model.get_repr(data=smiles_list, return_atomic_reprs=True)
+        output = self.model.get_repr(data=[smiles_list[i] for i in valid], return_atomic_reprs=True)
         atomic_reprs = output['atomic_reprs']
+        if len(atomic_reprs) != len(valid):
+            raise RuntimeError(
+                f'UniMol returned {len(atomic_reprs)} molecules for {len(valid)} '
+                f'SMILES; batch is misaligned'
+            )
 
-        results = []
-        for i, (smiles, unimol_names, parsed_atoms) in enumerate(
-            zip(smiles_list, all_unimol_names, parsed_atoms_list)
-        ):
-            if unimol_names is None:
-                print(f"Warning: invalid SMILES: {smiles}")
-                results.append(None)
+        max_atoms = int(self.model.params.get('max_atoms', 128))
+        for j, i in enumerate(valid):
+            smiles, mol, parsed_atoms = smiles_list[i], mols[i], parsed_atoms_list[i]
+            canonical_ranks = AllChem.CanonicalRankAtoms(mol)
+            unimol_names = [f"{atom.GetSymbol().upper()}{canonical_ranks[atom.GetIdx()]+1}"
+                            for atom in mol.GetAtoms()]
+            expected_z = [atom.GetAtomicNum() for atom in mol.GetAtoms()]
+            atomic_repr = torch.tensor(atomic_reprs[j])
+            reported_z = [int(z) for z in output['atomic_symbol'][j]]
+
+            # The only legitimate disagreement is Uni-Mol's random crop of molecules
+            # above its max_atoms; any other count or element difference means
+            # output j is not molecule j.
+            if len(expected_z) > max_atoms and len(reported_z) == max_atoms:
+                print(f"Warning: {smiles} has {len(expected_z)} atoms, above Uni-Mol's "
+                      f"max_atoms={max_atoms}")
+                statuses[i] = 'too_many_atoms'
                 continue
+            if reported_z != expected_z:
+                raise RuntimeError(
+                    f'UniMol output {j} reports atomic numbers {reported_z} but SMILES '
+                    f'{smiles} has {expected_z}; batch is misaligned'
+                )
 
-            atomic_repr = torch.tensor(atomic_reprs[i])
-
-            if len(atomic_repr) != len(unimol_names):
-                print(f"Warning: Uni-Mol returned {len(atomic_repr)} atoms, expected {len(unimol_names)}")
-                results.append(None)
-                continue
-
-            # Build name -> index mapping
             unimol_name_to_idx = {name: idx for idx, name in enumerate(unimol_names)}
             parsed_names = [atom['name'] for atom in parsed_atoms]
-
-            # Check for missing names
             missing = [name for name in parsed_names if name not in unimol_name_to_idx]
             if missing:
                 print(f"Warning: atom names not found for {smiles}: {missing[:5]}...")
-                results.append(None)
+                statuses[i] = 'atom_name_mismatch'
                 continue
 
-            # Reorder to match parsed atoms
-            reordered = torch.zeros(len(parsed_atoms), atomic_repr.shape[1], dtype=atomic_repr.dtype)
-            for j, name in enumerate(parsed_names):
-                unimol_idx = unimol_name_to_idx[name]
-                reordered[j] = atomic_repr[unimol_idx]
+            results[i] = atomic_repr[[unimol_name_to_idx[name] for name in parsed_names]]
+            coords = np.asarray(output['atomic_coords'][j])
+            statuses[i] = 'planar_conformer' if np.all(coords[:, 2] == 0) else ''
 
-            results.append(reordered)
-
-        return results
+        return (results, statuses) if return_status else results

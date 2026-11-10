@@ -20,6 +20,7 @@ wandb/
 logs/
 outputs/
 inference_output/
+/.refs/
 
 # archives
 *.tar.gz
@@ -35,6 +36,9 @@ data/5SAK_ZRY/*
 !data/5SAK_ZRY/system_data/
 !data/5SAK_ZRY/inputs/
 !data/5SAK_ZRY/inference.yaml
+!data/posebusters/
+data/posebusters/*
+!data/posebusters/benchmark.yaml
 # generated inference outputs (regenerable) stay untracked
 data/5SAK_ZRY/sample_*/
 data/5SAK_ZRY/results.pt
@@ -44,3 +48,64 @@ data/stats.jsonl
 .DS_Store
 .vscode/
 .idea/
+
+# TPD benchmark: keep the manifest, metadata and run scripts; inputs and
+# generated poses are regenerable from ~/workspace/boltz-tpd
+tpd/*
+!tpd/benchmark.yaml
+!tpd/records.tsv
+!tpd/skipped.tsv
+!tpd/run_tpd_redock.sh
+!tpd/tpd_redock.sbatch
+
+# local scratch runs (private checkpoint paths)
+pb_test/
+
+# singularity images
+*.sif
+
+# mirrored from ~/workspace/flex so equiflex does not depend on that tree;
+# kept on disk, not in git (baseline CSVs + raw benchmark inputs)
+comparison/
+
+# plinder system dirs are bulk data; the splits_*.csv manifests beside them stay trackable
+data_v2_plinder/train/
+data_v2_plinder/val/
+data_v2_plinder/test/
+
+data_v2_plinder/trainval/
+
+# ---------------------------------------------------------------------------
+# Not published: bulk benchmark/screen trees and unpublished manuscript work.
+# All of these are regenerable from the scripts in this repo plus the public
+# benchmark sources; together they are ~557 GB, so they must never be staged.
+# ---------------------------------------------------------------------------
+dekois/
+crossdock/
+screen_a2a/
+screen_cb1_chembl/
+screen_cb1_export/
+screen_kinase/
+equiscore/
+rtmscore/
+paper/
+
+# frozen pre-v10 source snapshot: kept on disk for reproducing older
+# checkpoints, deliberately not published
+artifacts/
+
+# agent/session state
+.omc/
+
+# vendored ligand libraries
+*.zip
+
+# Only the released checkpoint is tracked; training checkpoints and
+# superseded releases stay local.
+weights/*
+!weights/weights.ckpt
+
+# local prep/QC run logs and superseded split backups
+data_v2_plinder/prep_logs/
+data_v2_plinder/splits.csv.bak*
+data_v2_plinder/splits.csv.pre*

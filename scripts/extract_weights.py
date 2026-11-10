@@ -46,6 +46,28 @@ def remap_namespaces(obj):
     return obj
 
 
+# Training-only path fields of the pickled config. They are irrelevant to
+# inference but would otherwise ship the training cluster's directory layout
+# inside the public checkpoint.
+_NEUTRAL_PATHS = {
+    ("data", "data_dir"): "data/train",
+    ("data", "test_data_dir"): "data/test",
+    ("data", "pb_data_dir"): None,
+    ("data", "split_csv"): "src/equiflex/dataprep/lp_plinder/plinder_splits.csv",
+    ("data", "split_dir"): None,
+    ("logging", "checkpoint_dir"): "checkpoints",
+}
+
+
+def scrub_paths(config):
+    """Replace machine-specific path fields of a FullConfig with the repo defaults."""
+    for (section, field), value in _NEUTRAL_PATHS.items():
+        block = getattr(config, section, None)
+        if block is not None and hasattr(block, field):
+            setattr(block, field, value)
+    return config
+
+
 def extract(src: Path, dst: Path) -> None:
     ck = torch.load(src, map_location="cpu", weights_only=False)
     state_dict = dict(ck["state_dict"])
@@ -61,9 +83,12 @@ def extract(src: Path, dst: Path) -> None:
                 applied += 1
         print(f"Baked EMA weights into state_dict (decay={ema['decay']}, {applied} tensors)")
 
+    hyper_parameters = remap_namespaces(ck["hyper_parameters"])
+    if "config" in hyper_parameters:
+        scrub_paths(hyper_parameters["config"])
     slim = {
         "state_dict": state_dict,
-        "hyper_parameters": remap_namespaces(ck["hyper_parameters"]),
+        "hyper_parameters": hyper_parameters,
         "hparams_name": ck["hparams_name"],
         "pytorch-lightning_version": ck["pytorch-lightning_version"],
         "epoch": ck.get("epoch"),

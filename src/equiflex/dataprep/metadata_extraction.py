@@ -40,7 +40,7 @@ def get_plinder_systems():
         ('ligand_num_unresolved_heavy_atoms', '<', 1)
     ]
     
-    test_ids = get_test_data_ids(Path('/home/mhjang/workspace/flex/prep/posebusters_paper_results.csv'))
+    test_ids = get_test_data_ids(Path(__file__).resolve().parents[1] / 'prep' / 'posebusters_paper_results.csv')
     
     index = query_index(columns=columns, filters=filters)
     index = index.drop_duplicates("system_id")
@@ -122,10 +122,16 @@ def parse_single_system(system_dir: Path, storage_dir: Path, skip_existing: bool
         return
 
 if __name__ == '__main__':
-    plinder_system_dir = Path('/mnt/drive/plinder/2024-06/v2/systems')
-    storage_dir = Path('/home/mhjang/workspace/flex/data')
-    
-    plinders_systems = get_plinder_systems()
-    plinders_systems = [plinder_system_dir / i for i in plinders_systems]
-    
-    Parallel(n_jobs=-1)(delayed(parse_single_system)(system_dir, storage_dir) for system_dir in tqdm(plinders_systems))
+    import argparse
+    parser = argparse.ArgumentParser(description='Parse PLINDER systems into per-system pickles.')
+    parser.add_argument('--plinder-systems', type=Path, required=True,
+                        help='PLINDER systems root, e.g. <plinder>/2024-06/v2/systems')
+    parser.add_argument('--storage-dir', type=Path, required=True,
+                        help='output root; one directory per system is created here')
+    parser.add_argument('--n-jobs', type=int, default=-1)
+    args = parser.parse_args()
+
+    plinder_systems = [args.plinder_systems / i for i in get_plinder_systems()]
+    Parallel(n_jobs=args.n_jobs)(
+        delayed(parse_single_system)(system_dir, args.storage_dir) for system_dir in tqdm(plinder_systems)
+    )

@@ -103,7 +103,7 @@ def main():
     parser = argparse.ArgumentParser(description='Batch inference over test_data systems')
     parser.add_argument('--checkpoint',  type=str, required=True,
                         help='Path to Lightning .ckpt file')
-    parser.add_argument('--data-dir',    type=str, default='./test_data')
+    parser.add_argument('--data-dir',    type=str, required=True, help='featurised systems root')
     parser.add_argument('--output-dir',  type=str, default='./trajectory_output/test')
     parser.add_argument('--num-samples', type=int, default=10)
     parser.add_argument('--num-steps',   type=int, default=100)
@@ -116,12 +116,6 @@ def main():
                         help='Store full integration trajectory (default: True)')
     parser.add_argument('--no-trajectory', dest='return_trajectory', action='store_false',
                         help='Skip storing the trajectory to save memory')
-
-    relax_group = parser.add_argument_group('relaxation', 'MMFF energy minimisation options')
-    relax_group.add_argument('--relax', action='store_true',
-                             help='Run MMFF energy minimisation after sampling')
-    relax_group.add_argument('--relax-max-iterations', type=int, default=200,
-                             help='MMFF minimisation steps (default: 200)')
     args = parser.parse_args()
 
     data_dir   = Path(args.data_dir)
@@ -138,12 +132,7 @@ def main():
     trainer_module = FlexTrainer.load_from_checkpoint(args.checkpoint, map_location='cpu')
     sampler = FlowMatchingSampler(trainer_module.model, device=args.device)
     print(f"Model loaded. Device: {args.device}")
-    if args.relax:
-        print(f"Relaxation enabled (MMFF, max_iters={args.relax_max_iterations})")
     print("=" * 60)
-
-    if args.relax:
-        from equiflex.inference.relaxation import relax_complex, write_complex_cif
 
     n_done, n_skip, n_fail = 0, 0, 0
 
@@ -168,42 +157,6 @@ def main():
             )
 
             sys_out.mkdir(parents=True, exist_ok=True)
-
-            if args.relax:
-                pocket_feats = torch.load(system_dir / 'pocket_features.pt', weights_only=False)
-                ligand_feats = torch.load(system_dir / 'ligand_features.pt', weights_only=False)
-                backbone_com = results['backbone_com']
-                B = results['rec_coords_final'].shape[0]
-                n_relaxed = 0
-
-                for b in range(B):
-                    sample_dir = sys_out / f'sample_{b}'
-                    sample_dir.mkdir(parents=True, exist_ok=True)
-
-                    write_complex_cif(
-                        pocket_feats, ligand_feats,
-                        results['rec_coords_final'][b],
-                        results['lig_coords_final'][b],
-                        backbone_com,
-                        sample_dir / 'predicted.cif',
-                    )
-
-                    try:
-                        relaxed = relax_complex(
-                            system_dir=system_dir,
-                            rec_coords=results['rec_coords_final'][b],
-                            lig_coords=results['lig_coords_final'][b],
-                            backbone_com=backbone_com,
-                            output_dir=sample_dir,
-                            max_iterations=args.relax_max_iterations,
-                            write_structures=True,
-                        )
-                        results['lig_coords_final'][b] = relaxed['lig_coords']
-                        n_relaxed += 1
-                    except Exception as e:
-                        print(f"  [RELAX FAIL] {system_id} sample {b}: {e}")
-
-                print(f"  Relaxed {n_relaxed}/{B} samples")
 
             torch.save(results, out_path)
             n_done += 1

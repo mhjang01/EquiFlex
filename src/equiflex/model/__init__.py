@@ -12,9 +12,6 @@ from .config import (
     TrainingConfig,
     load_config,
     get_default_config,
-    get_small_config,
-    get_base_config,
-    get_large_config,
 )
 from .trainer import FlexTrainer, EMACallback, get_trainer
 
@@ -32,9 +29,6 @@ __all__ = [
     'TrainingConfig',
     'load_config',
     'get_default_config',
-    'get_small_config',
-    'get_base_config',
-    'get_large_config',
     'FlexTrainer',
     'EMACallback',
     'get_trainer',

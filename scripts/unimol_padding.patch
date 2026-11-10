@@ -1,0 +1,75 @@
+Padding-invariance patch for unimol_tools 0.1.5 (Uni-Mol v2 models).
+
+Stock unimol_tools lets padded atoms leak into real ones in three places, so a
+molecule's embedding depends on the largest molecule in its batch (max abs
+shift ~1e2 on the 1.1B model, comparable to the difference between two
+molecules):
+  1. models/unimolv2.py      attention mask is all zeros -> padded keys take softmax mass
+  2. models/transformersv2.py outer-product scale uses the padded length N_pad;
+                              with the output bias a real pair gets (W o + N_pad b)/(1 + 1e-3 N_pad)
+  3. models/transformersv2.py triangle multiplication scale uses N_pad
+Each hunk reduces to the stock computation when nothing is padded, so
+single-molecule results are bit-identical. PADDING_INVARIANT marks a patched
+install; equiflex.prep.featurize.UniMolExtractor refuses to run without it.
+
+Apply / revert / verify with scripts/patch_unimol.sh.
+
+--- a/models/unimolv2.py
++++ b/models/unimolv2.py
+@@ -235,6 +235,13 @@
+         x = x.type(dtype)
+ 
+         attn_mask = attn_bias.clone()
++        # equiflex padding patch: exclude padded atoms (atom_mask == 0) from
++        # attention. Column 0 is the CLS token and is always a valid key, so no
++        # query row is entirely -inf.
++        pad_keys = torch.cat(
++            [torch.zeros_like(atom_mask[:, :1]), atom_mask == 0], dim=1
++        ).bool()
++        attn_mask = attn_mask.masked_fill(pad_keys.unsqueeze(1), float('-inf'))
+         attn_bias = torch.zeros_like(attn_mask)
+         attn_mask = attn_mask.unsqueeze(1).repeat(
+             1, self.args.encoder_attention_heads, 1, 1
+--- a/models/transformersv2.py
++++ b/models/transformersv2.py
+@@ -506,6 +506,12 @@
+         return f"prob={self.drop_prob}"
+ 
+ 
++# Set by the equiflex padding patch (scripts/unimol_padding.patch): attention,
++# outer product and triangle multiplication ignore padded atoms, so a
++# molecule's embedding no longer depends on the batch it was computed in.
++PADDING_INVARIANT = True
++
++
+ class TriangleMultiplication(nn.Module):
+     def __init__(self, d_pair, d_hid):
+         super(TriangleMultiplication, self).__init__()
+@@ -524,8 +530,11 @@
+         mask: Optional[torch.Tensor] = None,
+     ) -> torch.Tensor:
+ 
+-        mask = mask.unsqueeze(-1)
+-        mask = mask * (mask.shape[-2] ** -0.5)
++        # equiflex padding patch: scale by each molecule's real atom count, not
++        # the padded batch length (mask is the outer product of the atom mask,
++        # so its diagonal sums to the real count).
++        n_real = mask.diagonal(dim1=-2, dim2=-1).sum(-1).clamp(min=1)
++        mask = mask.unsqueeze(-1) * n_real.view(-1, 1, 1, 1) ** -0.5
+ 
+         g = self.linear_g(z)
+         if self.training:
+@@ -753,8 +762,11 @@
+ 
+         x = self.layer_norm(x)
+         pair = self.pair_layer_norm(pair)
+-        op_mask = atom_mask.unsqueeze(-1)
+-        op_mask = op_mask * (op_mask.size(-2) ** -0.5)
++        # equiflex padding patch: scale by each molecule's real atom count, not
++        # the padded batch length. The outer product's output bias otherwise
++        # enters every real pair as (W o + N_pad b) / (1 + eps N_pad).
++        n_real = atom_mask.sum(-1, keepdim=True).unsqueeze(-1).clamp(min=1)
++        op_mask = atom_mask.unsqueeze(-1) * n_real ** -0.5
+         eps = 1e-3
+         op_norm = 1.0 / (eps + torch.einsum("...bc,...dc->...bdc", op_mask, op_mask))
+         for layer in self.layers:

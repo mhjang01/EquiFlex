@@ -183,9 +183,21 @@ def gemmi_parse_protein(block, excludeflags: Optional[ExcludeFlags] = None):
     col_y_data = block.find_values('_atom_site.Cartn_y')
     col_z_data = block.find_values('_atom_site.Cartn_z')
     altloc_data = block.find_values('_atom_site.label_alt_id')
+    # Author numbering, kept alongside label_seq_id so the predicted-pocket
+    # overlay can match residues in a gemmi structure (which is author-numbered).
+    # Without it process.build_pocket falls back to the label_seq ordinal and the
+    # overlay silently misses every residue whose ordinal != author number.
+    auth_seq_data = block.find_values('_atom_site.auth_seq_id')
+    ins_code_data = block.find_values('_atom_site.pdbx_PDB_ins_code')
 
-    sequences = block.find_values('_entity_poly.pdbx_seq_one_letter_code_can')
-    
+    # as_string strips mmCIF quoting. A long sequence is stored as a multi-line
+    # text field delimited by ';', and find_values hands back those delimiters
+    # verbatim; sanitize_sequence then turns each ';' into an 'X', prepending one
+    # residue and shifting every label_seq_id by one against the sequence, so
+    # ESM3Extractor attaches each pocket residue the embedding of its predecessor.
+    sequences = [gemmi.cif.as_string(s)
+                 for s in block.find_values('_entity_poly.pdbx_seq_one_letter_code_can')]
+
     block.find_values('_struct_asym.id')
     block.find_values('_struct_asym.entity_id')
     
@@ -195,8 +207,13 @@ def gemmi_parse_protein(block, excludeflags: Optional[ExcludeFlags] = None):
     # Hierarchical data structure: chain -> residue -> atoms
     structure = {}
 
-    for i, (group_pdb, atom_type, atom_id, comp_id, asym_id, entity_id, seq_id, col_x, col_y, col_z, altloc) in enumerate(
-        zip(pdb_group_data, atom_type_data, atom_id_data, comp_id_data, asym_id_data, entity_id_data, seq_id_data, col_x_data, col_y_data, col_z_data, altloc_data)
+    # Both author columns are optional; fall back so zip() never truncates.
+    n_rows = len(comp_id_data)
+    auth_seq_col = list(auth_seq_data) if len(auth_seq_data) == n_rows else list(seq_id_data)
+    ins_code_col = list(ins_code_data) if len(ins_code_data) == n_rows else [''] * n_rows
+
+    for i, (group_pdb, atom_type, atom_id, comp_id, asym_id, entity_id, seq_id, col_x, col_y, col_z, altloc, auth_seq, ins_code) in enumerate(
+        zip(pdb_group_data, atom_type_data, atom_id_data, comp_id_data, asym_id_data, entity_id_data, seq_id_data, col_x_data, col_y_data, col_z_data, altloc_data, auth_seq_col, ins_code_col)
     ):
         
         try:
@@ -236,9 +253,16 @@ def gemmi_parse_protein(block, excludeflags: Optional[ExcludeFlags] = None):
         res_key = (int(seq_id), aa_1_letter)
 
         if res_key not in structure[chain_id]:
+            icode = '' if ins_code in (None, '', '.', '?', False) else str(ins_code).strip()
+            try:
+                pdb_resnum = int(auth_seq)
+            except (TypeError, ValueError):
+                pdb_resnum = int(seq_id)
             structure[chain_id][res_key] = {
                 'resname': comp_id,
                 'resnum': int(seq_id),
+                'pdb_resnum': pdb_resnum,  # author numbering, for the pocket overlay
+                'pdb_icode': icode,
                 'entity_id': int(entity_id),
                 'atoms': []
             }
@@ -663,6 +687,48 @@ def extract_ligand_data(mol_path: Path) -> Dict:
 
 
 ### Torsion Index Computation ###
+
+def get_chiral_atom_indices(mol) -> np.ndarray:
+    '''
+    Improper-dihedral quadruples encoding each tetrahedral stereocentre.
+
+    Returns [K, 5] of (a0, a1, a2, centre, is_r) in the SAME atom order as the
+    input mol.  a0..a2 are the three highest-CIP-rank substituents, so the SIGN
+    of the dihedral over (a0, a1, a2, centre) encodes R vs S -- a pseudoscalar,
+    which is the only kind of quantity that can tell enantiomers apart.
+    Four-substituent centres also emit the three drop-one quadruples (order
+    reversed on even skips to preserve orientation) for redundancy.
+
+    Consumed by ChiralAtomLoss via the inference-time guidance.
+    '''
+    Chem.AssignStereochemistry(mol, cleanIt=True, force=True, flagPossibleStereoCenters=True)
+    if not all(a.HasProp('_CIPRank') for a in mol.GetAtoms()):
+        return np.empty((0, 5), dtype=np.int64)
+
+    out = []
+    for centre_idx, orientation in Chem.FindMolChiralCenters(mol, includeUnassigned=False):
+        centre = mol.GetAtomWithIdx(centre_idx)
+        if centre.GetHybridization() != Chem.HybridizationType.SP3:
+            continue
+        nbrs = sorted(
+            ((n.GetIdx(), int(n.GetProp('_CIPRank'))) for n in centre.GetNeighbors()),
+            key=lambda x: x[1], reverse=True,
+        )
+        if not 3 <= len(nbrs) <= 4:
+            continue
+        nbrs = tuple(i for i, _ in nbrs)
+        is_r = int(orientation == 'R')
+        out.append((*nbrs[:3], centre_idx, is_r))
+        if len(nbrs) == 4:
+            for skip in range(3):
+                sub = nbrs[:skip] + nbrs[skip + 1:]
+                quad = sub[::-1] if skip % 2 == 0 else sub
+                out.append((*quad, centre_idx, is_r))
+
+    if not out:
+        return np.empty((0, 5), dtype=np.int64)
+    return np.asarray(out, dtype=np.int64)
+
 
 def get_sp2_torsion_indices(
     atoms: List[Dict],

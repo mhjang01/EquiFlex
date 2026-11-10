@@ -1,0 +1,8855 @@
+name: PoseBusters benchmark
+version: 2
+pocket_provenance:
+  cutoff: 5.0
+  selector: equiflex.prep.parse.get_pocket_residues
+  reference: deposited {ID}_ligand.sdf
+  generated_by: scripts/select_pocket.py
+  ions: standalone single-atom metal residues within cutoff (scripts/select_pocket.py)
+systems:
+  5SAK_ZRY:
+    protein:
+      path: 5SAK_ZRY_protein.pdb
+      residues:
+        A:
+        - 35
+        - 37
+        - 38
+        - 79
+        - 80
+        - 81
+        - 83
+        - 116
+        - 125
+        - 219
+        - 221
+        - 222
+        - 226
+        - 300
+        - 304
+    ligand:
+      smiles: N=C1N/C(=N\Nc2ccccc2)c2ccccc21
+      reference_sdf: 5SAK_ZRY_ligand.sdf
+  5SB2_1K2:
+    protein:
+      path: 5SB2_1K2_protein.pdb
+      residues:
+        A:
+        - 14
+        - 22
+        - 39
+        - 40
+        - 41
+        - 58
+        - 61
+        - 62
+        - 65
+        - 70
+        - 71
+        - 85
+        - 86
+        - 87
+        - 88
+        - 89
+        - 90
+        - 93
+        - 94
+        - 131
+        - 136
+        - 138
+        - 147
+        - 156
+        - 157
+        - 158
+        - 159
+    ligand:
+      smiles: O=C(N[C@@H]1C[C@H]1c1ccccc1)c1cc(Cl)cc(COc2cnc3[nH]ccc3c2)c1
+      reference_sdf: 5SB2_1K2_ligand.sdf
+  5SD5_HWI:
+    protein:
+      path: 5SD5_HWI_protein.pdb
+      residues:
+        A:
+        - 12
+        - 13
+        - 14
+        - 26
+        - 27
+        - 30
+        - 34
+        - 35
+        - 37
+        - 38
+        - 39
+        - 53
+        - 57
+        - 64
+        - 65
+        - 67
+        - 101
+        - 102
+        - 107
+        - 120
+    ligand:
+      smiles: CCc1nc(N)nc(N)c1OCCCOc1cc(C)ccc1N1CC(C(=O)O)C1
+      reference_sdf: 5SD5_HWI_ligand.sdf
+  5SIS_JSM:
+    protein:
+      path: 5SIS_JSM_protein.pdb
+      residues:
+        A:
+        - 65
+        - 66
+        - 174
+        - 176
+        - 215
+        - 216
+        - 218
+        - 219
+        - 233
+        - 234
+        - 237
+        - 253
+        - 254
+        - 259
+        - 262
+        - 263
+        - 266
+        - 267
+        - 270
+    ligand:
+      smiles: CNCCN(C)C(=O)c1cnn(C)c1C(=O)Nc1ccn2cc(-c3ccccc3)nc2c1
+      reference_sdf: 5SIS_JSM_ligand.sdf
+  6M2B_EZO:
+    protein:
+      path: 6M2B_EZO_protein.pdb
+      residues:
+        A:
+        - 7
+        - 11
+        - 12
+        - 15
+        - 16
+        - 21
+        - 24
+        - 25
+        - 28
+        - 31
+        - 32
+        - 36
+        - 37
+        - 38
+        - 67
+        - 80
+        - 103
+        - 105
+        - 112
+        - 325
+        - 328
+        - 329
+        - 332
+        - 333
+    ligand:
+      smiles: CN(/N=C/c1ccccc1C(=O)O)c1nc(-c2ccccc2Cl)cs1
+      reference_sdf: 6M2B_EZO_ligand.sdf
+  6M73_FNR:
+    protein:
+      path: 6M73_FNR_protein.pdb
+      residues:
+        A:
+        - 34
+        - 35
+        - 86
+        - 87
+        - 88
+        - 89
+        - 116
+        - 118
+        - 139
+        - 141
+        - 167
+        - 208
+        - 234
+        - 256
+        - 258
+        - 259
+        - 261
+        - 289
+        - 290
+        - 291
+        - 292
+        - 293
+        - 310
+        - 311
+        - 312
+        - 313
+        - 314
+    ligand:
+      smiles: Cc1cc2c(cc1C)N(C[C@H](O)[C@H](O)[C@H](O)COP(=O)(O)O)c1[nH]c(=O)[nH]c(=O)c1N2
+      reference_sdf: 6M73_FNR_ligand.sdf
+  6T88_MWQ:
+    protein:
+      path: 6T88_MWQ_protein.pdb
+      residues:
+        A:
+        - 47
+        - 49
+        - 115
+        - 117
+        - 243
+        - 245
+        - 255
+        - 257
+        - 260
+        - 263
+        - 392
+        - 432
+        - 433
+        - 434
+        - 435
+        - 436
+    ligand:
+      smiles: O=C(O)CCc1cnc[nH]1
+      reference_sdf: 6T88_MWQ_ligand.sdf
+  6TW5_9M2:
+    protein:
+      path: 6TW5_9M2_protein.pdb
+      residues:
+        C:
+        - 69
+        - 70
+        - 71
+        - 72
+        - 77
+        - 78
+        - 79
+        - 81
+        - 135
+        - 171
+        - 172
+        - 173
+        - 185
+        - 186
+        - 187
+        - 200
+        - 278
+        - 289
+        - 293
+        - 324
+        - 325
+        - 326
+        - 347
+        - 368
+        - 369
+    ligand:
+      smiles: Cc1nn(C)c(C)c1CCOc1cc(F)ccc1-c1ccc2n[nH]c(CN(C)C)c2c1
+      reference_sdf: 6TW5_9M2_ligand.sdf
+  6TW7_NZB:
+    protein:
+      path: 6TW7_NZB_protein.pdb
+      residues:
+        A:
+        - 70
+        - 71
+        - 72
+        - 73
+        - 78
+        - 79
+        - 80
+        - 82
+        - 157
+        - 193
+        - 194
+        - 195
+        - 207
+        - 208
+        - 320
+        - 335
+        - 366
+        - 367
+        - 368
+        - 389
+        - 410
+        - 411
+    ligand:
+      smiles: CN(C)Cc1[nH]nc2ccc(-c3ccc(F)cc3OCCc3cccnc3)cc12
+      reference_sdf: 6TW7_NZB_ligand.sdf
+  6VTA_AKN:
+    protein:
+      path: 6VTA_AKN_protein.pdb
+      residues:
+        A:
+        - 32
+        - 35
+        - 36
+        - 40
+        - 81
+        - 82
+        - 83
+        - 117
+        - 118
+        - 119
+        - 120
+        - 151
+        - 152
+        - 179
+        - 181
+    ligand:
+      smiles: NCC[C@H](O)C(=O)N[C@@H]1C[C@H](N)[C@@H](O[C@H]2O[C@H](CN)[C@@H](O)[C@H](O)[C@H]2O)[C@H](O)[C@H]1O[C@H]1O[C@H](CO)[C@@H](O)[C@H](N)[C@H]1O
+      reference_sdf: 6VTA_AKN_ligand.sdf
+  6WTN_RXT:
+    protein:
+      path: 6WTN_RXT_protein.pdb
+      residues:
+        A:
+        - 13
+        - 14
+        - 15
+        - 16
+        - 19
+        - 20
+        - 21
+        - 38
+        - 40
+        - 69
+        - 85
+        - 86
+        - 87
+        - 88
+        - 91
+        - 136
+        - 137
+        - 138
+        - 139
+        - 149
+        - 150
+    ligand:
+      smiles: N#CC[C@H](C1CCCC1)n1cc(-c2ncnc3[nH]ccc23)cn1
+      reference_sdf: 6WTN_RXT_ligand.sdf
+  6XBO_5MC:
+    protein:
+      path: 6XBO_5MC_protein.pdb
+      residues:
+        A:
+        - 44
+        - 47
+        - 90
+        - 93
+        - 94
+        - 113
+        - 116
+        - 180
+        - 184
+        - 187
+        - 202
+        - 205
+        - 206
+        - 248
+        - 249
+        - 250
+        - 252
+        - 253
+        - 256
+        - 264
+    ligand:
+      smiles: Cc1cn([C@@H]2O[C@H](COP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)nc1N
+      reference_sdf: 6XBO_5MC_ligand.sdf
+  6XCT_478:
+    protein:
+      path: 6XCT_478_protein.pdb
+      residues:
+        A:
+        - 30
+        - 32
+        - 34
+        - 35
+        - 72
+        - 73
+        - 74
+        - 75
+        - 76
+        - 110
+        - 116
+        - 119
+        - 127
+        - 188
+        - 212
+        - 214
+        - 216
+        - 217
+        - 218
+        - 285
+        - 287
+        - 296
+    ligand:
+      smiles: CC(C)CN(C[C@@H](O)[C@H](Cc1ccccc1)NC(=O)O[C@H]1CCOC1)S(=O)(=O)c1ccc(N)cc1
+      reference_sdf: 6XCT_478_ligand.sdf
+  6XG5_TOP:
+    protein:
+      path: 6XG5_TOP_protein.pdb
+      residues:
+        A:
+        - 5
+        - 6
+        - 7
+        - 20
+        - 27
+        - 28
+        - 30
+        - 31
+        - 46
+        - 49
+        - 50
+        - 54
+        - 93
+        - 94
+        - 95
+        - 100
+        - 113
+    ligand:
+      smiles: COc1cc(Cc2cnc(N)nc2N)cc(OC)c1OC
+      reference_sdf: 6XG5_TOP_ligand.sdf
+  6XHT_V2V:
+    protein:
+      path: 6XHT_V2V_protein.pdb
+      residues:
+        E:
+        - 7
+        - 8
+        - 9
+        - 10
+        - 17
+        - 46
+        - 75
+        - 76
+        - 77
+        - 78
+        - 81
+        - 105
+        - 106
+        - 107
+        - 108
+        - 130
+        - 131
+        - 160
+        - 161
+        - 162
+        - 164
+        - 187
+        - 188
+        - 211
+        - 212
+        - 213
+        F:
+        - 142
+        - 143
+        - 144
+        - 160
+    ligand:
+      smiles: Nc1ccn([C@@H]2O[C@H](CO[P@](=O)(O)O[P@@](=O)(O)OC[C@@H](O)[C@@H](O)[C@@H](O)CO)[C@@H](O)[C@H]2O)c(=O)n1
+      reference_sdf: 6XHT_V2V_ligand.sdf
+  6XM9_V55:
+    protein:
+      path: 6XM9_V55_protein.pdb
+      residues:
+        A:
+        - 44
+        - 58
+        - 100
+        - 101
+        - 119
+        - 120
+        - 133
+        - 134
+        - 215
+        - 217
+        - 282
+        - 283
+        - 306
+        - 465
+    ligand:
+      smiles: COc1cc(C=O)ccc1O
+      ions:
+      - '[Co+2]'
+      reference_sdf: 6XM9_V55_ligand.sdf
+  6YJA_2BA:
+    protein:
+      path: 6YJA_2BA_protein.pdb
+      residues:
+        A:
+        - 43
+        - 108
+        - 109
+        - 110
+        - 111
+        - 128
+        B:
+        - 10
+        - 14
+        - 15
+        - 16
+        - 34
+        - 35
+        - 36
+        - 37
+        - 38
+        - 39
+        - 40
+        - 105
+        - 106
+        - 119
+        - 121
+        - 122
+        - 123
+        - 124
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@@H]2CO[P@@](=O)(O)O[C@H]3[C@@H](O)[C@H](n4cnc5c(N)ncnc54)O[C@@H]3CO[P@](=O)(O)O[C@H]2[C@H]1O
+      reference_sdf: 6YJA_2BA_ligand.sdf
+  6YMS_OZH:
+    protein:
+      path: 6YMS_OZH_protein.pdb
+      residues:
+        E:
+        - 110
+        - 111
+        - 112
+        - 113
+        - 114
+        - 115
+        - 130
+        - 133
+        - 139
+        - 142
+        - 143
+        - 146
+        - 157
+        - 166
+        - 188
+        - 189
+        - 202
+        - 203
+        - 231
+    ligand:
+      smiles: CC(C)C[C@H](NC(=O)CN[P@@](=O)(O)[C@@H](Cc1ccccc1)NC(=O)OCc1ccccc1)C(=O)O
+      ions:
+      - '[Zn+2]'
+      reference_sdf: 6YMS_OZH_ligand.sdf
+  6YQV_8K2:
+    protein:
+      path: 6YQV_8K2_protein.pdb
+      residues:
+        H:
+        - 192
+        - 193
+        - 194
+        - 195
+        - 198
+        - 218
+        - 219
+        - 220
+        - 221
+        - 222
+        - 223
+        - 224
+        - 231
+        - 232
+        - 233
+    ligand:
+      smiles: NS(=O)(=O)c1ccc(Cl)s1
+      reference_sdf: 6YQV_8K2_ligand.sdf
+  6YQW_82I:
+    protein:
+      path: 6YQW_82I_protein.pdb
+      residues:
+        A:
+        - 23
+        - 24
+        - 28
+        - 32
+        - 33
+        - 36
+        - 75
+        - 78
+        - 79
+        - 85
+    ligand:
+      smiles: CNc1cnn(C)c(=O)c1Cl
+      reference_sdf: 6YQW_82I_ligand.sdf
+  6YR2_T1C:
+    protein:
+      path: 6YR2_T1C_protein.pdb
+      residues:
+        A:
+        - 146
+        - 147
+        - 150
+        - 169
+        - 172
+        - 173
+        - 176
+        - 177
+        - 180
+        - 181
+        B:
+        - 59
+        - 63
+        - 66
+        - 81
+        - 85
+        - 99
+        - 102
+        - 103
+        - 104
+        - 108
+        - 111
+        - 112
+        - 115
+        - 116
+        - 130
+        - 133
+        - 134
+        - 136
+        - 137
+    ligand:
+      smiles: C[NH+](C)c1cc(NC(=O)CNC(C)(C)C)c(O)c2c1C[C@H]1C[C@H]3[C@H]([NH+](C)C)C(O)=C(C(N)=O)C(=O)[C@@]3(O)C(O)=C1C2=O
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 6YR2_T1C_ligand.sdf
+  6YRV_PJ8:
+    protein:
+      path: 6YRV_PJ8_protein.pdb
+      residues:
+        A:
+        - 52
+        - 54
+        - 55
+        - 58
+        - 310
+        - 324
+        - 325
+        - 328
+        - 353
+        - 354
+        - 355
+        - 356
+        - 375
+        - 377
+        - 379
+        - 380
+        - 381
+        - 386
+        - 387
+        - 389
+        - 390
+        - 393
+        - 403
+        - 408
+        - 410
+    ligand:
+      smiles: CCCCCCCCCCCCCCCCC
+      reference_sdf: 6YRV_PJ8_ligand.sdf
+  6YSP_PAL:
+    protein:
+      path: 6YSP_PAL_protein.pdb
+      residues:
+        B:
+        - 85
+        - 88
+        C:
+        - 54
+        - 55
+        - 56
+        - 57
+        - 58
+        - 59
+        - 108
+        - 136
+        - 139
+        - 169
+        - 170
+        - 231
+        - 233
+        - 235
+        - 270
+        - 271
+        - 272
+    ligand:
+      smiles: O=C(O)C[C@H](NC(=O)CP(=O)(O)O)C(=O)O
+      reference_sdf: 6YSP_PAL_ligand.sdf
+  6YT6_PKE:
+    protein:
+      path: 6YT6_PKE_protein.pdb
+      residues:
+        B:
+        - 13
+        - 15
+        - 16
+        - 17
+        - 18
+        - 23
+        - 25
+        - 39
+        - 41
+        - 71
+        - 86
+        - 87
+        - 88
+        - 89
+        - 90
+        - 91
+        - 92
+        - 93
+        - 137
+        - 138
+        - 140
+        - 150
+        - 151
+    ligand:
+      smiles: CN(c1ncccc1CNc1ccnc(Nc2ccc3c(c2)CC(=O)N3)n1)S(C)(=O)=O
+      reference_sdf: 6YT6_PKE_ligand.sdf
+  6YYO_Q1K:
+    protein:
+      path: 6YYO_Q1K_protein.pdb
+      residues:
+        A:
+        - 71
+        - 73
+        - 116
+        B:
+        - 26
+        - 27
+        - 70
+        - 71
+        - 72
+        - 116
+        - 137
+        - 138
+        - 139
+        - 163
+        - 164
+        - 165
+        - 166
+        - 212
+    ligand:
+      smiles: CS(=O)(=O)N1CCN(c2ccc3nncn3n2)CC1
+      reference_sdf: 6YYO_Q1K_ligand.sdf
+  6Z0R_Q4H:
+    protein:
+      path: 6Z0R_Q4H_protein.pdb
+      residues:
+        A:
+        - 19
+        - 27
+        - 29
+        - 69
+        - 90
+        - 91
+        - 92
+        - 93
+        - 95
+        - 212
+        - 213
+    ligand:
+      smiles: N#Cc1cncnc1N
+      reference_sdf: 6Z0R_Q4H_ligand.sdf
+  6Z14_Q4Z:
+    protein:
+      path: 6Z14_Q4Z_protein.pdb
+      residues:
+        J:
+        - 160
+        - 163
+        - 192
+        - 272
+        - 357
+        - 393
+        - 412
+        - 442
+        - 444
+        - 445
+        - 454
+        - 456
+        - 490
+        - 492
+    ligand:
+      smiles: CC1=[NH+][C@H]2[C@@H](O1)O[C@H](COS(=O)(=O)[O-])[C@@H](O)[C@@H]2O
+      reference_sdf: 6Z14_Q4Z_ligand.sdf
+  6Z1C_7EY:
+    protein:
+      path: 6Z1C_7EY_protein.pdb
+      residues:
+        A:
+        - 37
+        - 38
+        - 39
+        - 45
+        - 58
+        - 60
+        - 73
+        - 87
+        - 105
+        - 106
+        - 107
+        - 108
+        - 110
+        - 155
+        - 166
+        - 167
+        - 168
+    ligand:
+      smiles: Cc1ccc(-c2csc3ncnc(SCCC(=O)O)c23)cc1
+      reference_sdf: 6Z1C_7EY_ligand.sdf
+  6Z2C_Q5E:
+    protein:
+      path: 6Z2C_Q5E_protein.pdb
+      residues:
+        B:
+        - 34
+        - 45
+        - 46
+        - 49
+        - 66
+        - 68
+        - 77
+        - 79
+        - 98
+        - 101
+        - 104
+        - 121
+        - 132
+        - 134
+    ligand:
+      smiles: O=C(O)CCCCCN1C(=O)[C@@H]2[C@H](C1=O)[C@]1(Cl)C(Cl)=C(Cl)[C@@]2(Cl)C1(Cl)Cl
+      reference_sdf: 6Z2C_Q5E_ligand.sdf
+  6Z4N_Q7B:
+    protein:
+      path: 6Z4N_Q7B_protein.pdb
+      residues:
+        B:
+        - 43
+        - 69
+        - 70
+        - 71
+        - 72
+        - 73
+        - 74
+        - 75
+        - 121
+        - 144
+        - 145
+        - 178
+        - 179
+        - 229
+        - 230
+        - 231
+        - 232
+        - 233
+    ligand:
+      smiles: Cc1ccc(C[C@@]2(C(=O)O)C[C@H]2c2ccccc2)cc1
+      reference_sdf: 6Z4N_Q7B_ligand.sdf
+  6ZAE_ACV:
+    protein:
+      path: 6ZAE_ACV_protein.pdb
+      residues:
+        A:
+        - 84
+        - 88
+        - 101
+        - 103
+        - 180
+        - 182
+        - 184
+        - 186
+        - 208
+        - 211
+        - 213
+        - 220
+        - 222
+        - 228
+        - 267
+        - 269
+        - 278
+        - 280
+        - 282
+        - 284
+        - 318
+        - 321
+        - 328
+    ligand:
+      smiles: CC(C)[C@@H](NC(=O)[C@H](CS)NC(=O)CCC[C@H](N)C(=O)O)C(=O)O
+      ions:
+      - '[Fe+2]'
+      reference_sdf: 6ZAE_ACV_ligand.sdf
+  6ZC3_JOR:
+    protein:
+      path: 6ZC3_JOR_protein.pdb
+      residues:
+        A:
+        - 58
+        - 59
+        B:
+        - 16
+        - 17
+        - 18
+        - 19
+        - 20
+        - 21
+        - 73
+        - 76
+        - 77
+        - 80
+        - 81
+    ligand:
+      smiles: CS(=O)(=O)Nc1ccc(F)cc1C(=O)O
+      reference_sdf: 6ZC3_JOR_ligand.sdf
+  6ZCY_QF8:
+    protein:
+      path: 6ZCY_QF8_protein.pdb
+      residues:
+        A:
+        - 15
+        - 16
+        - 17
+        - 21
+        - 36
+        - 38
+        - 49
+        - 62
+        - 77
+        - 78
+        - 79
+        - 80
+        - 81
+        - 82
+        - 83
+        - 84
+        - 127
+        - 128
+        - 130
+        - 140
+        - 141
+    ligand:
+      smiles: CNC(=O)c1nn(C)c2ccc(Nc3nccc(-n4cc(N[C@@H]5CCNC5)c(C)n4)n3)cc12
+      reference_sdf: 6ZCY_QF8_ligand.sdf
+  6ZK5_IMH:
+    protein:
+      path: 6ZK5_IMH_protein.pdb
+      residues:
+        A:
+        - 9
+        - 13
+        - 14
+        - 38
+        - 78
+        - 80
+        - 81
+        - 82
+        - 124
+        - 125
+        - 150
+        - 159
+        - 165
+        - 166
+        - 167
+        - 190
+        - 224
+        - 227
+        - 232
+        - 240
+        - 241
+        B:
+        - 280
+    ligand:
+      smiles: OC[C@H]1N[C@@H](c2c[nH]c3c(O)ncnc23)[C@H](O)[C@@H]1O
+      ions:
+      - '[Ca+2]'
+      reference_sdf: 6ZK5_IMH_ligand.sdf
+  6ZPB_3D1:
+    protein:
+      path: 6ZPB_3D1_protein.pdb
+      residues:
+        A:
+        - 17
+        - 18
+        - 19
+        - 20
+        - 21
+        - 68
+        - 73
+        - 74
+        - 75
+        - 76
+        - 77
+        - 133
+        - 137
+        - 140
+        - 141
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@H]1C[C@H](O)[C@@H](CO)O1
+      ions:
+      - '[Co+2]'
+      reference_sdf: 6ZPB_3D1_ligand.sdf
+  7A1P_QW2:
+    protein:
+      path: 7A1P_QW2_protein.pdb
+      residues:
+        A:
+        - 134
+        - 136
+        - 175
+        - 177
+        - 185
+        - 188
+        - 190
+        - 194
+        - 196
+        - 203
+        - 268
+        - 270
+        - 281
+        - 283
+        - 285
+        B:
+        - 14
+    ligand:
+      smiles: CCC[C@@H](CC(=O)C(=O)O)C(=O)O
+      ions:
+      - '[Zn+2]'
+      reference_sdf: 7A1P_QW2_ligand.sdf
+  7A9E_R4W:
+    protein:
+      path: 7A9E_R4W_protein.pdb
+      residues:
+        A:
+        - 40
+        - 41
+        - 42
+        - 43
+        - 44
+        - 45
+        - 48
+        - 49
+        - 50
+        - 51
+        - 54
+        - 62
+        - 88
+        - 90
+    ligand:
+      smiles: CCS(C)(=O)=O
+      reference_sdf: 7A9E_R4W_ligand.sdf
+  7A9H_TPP:
+    protein:
+      path: 7A9H_TPP_protein.pdb
+      residues:
+        A:
+        - 44
+        - 70
+        - 72
+        - 73
+        - 113
+        - 114
+        - 115
+        - 144
+        - 145
+        - 146
+        - 147
+        - 172
+        - 174
+        - 226
+        - 260
+        - 261
+        - 262
+        - 284
+        - 286
+        - 311
+        - 314
+    ligand:
+      smiles: Cc1ncc(C[n+]2csc(CCO[P@](=O)(O)OP(=O)(O)O)c2C)c(N)n1
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 7A9H_TPP_ligand.sdf
+  7AFX_R9K:
+    protein:
+      path: 7AFX_R9K_protein.pdb
+      residues:
+        A:
+        - 31
+        - 36
+        - 56
+        - 85
+        - 87
+        - 148
+        - 167
+        - 170
+        - 174
+        - 178
+        - 179
+        - 209
+        B:
+        - 33
+        - 34
+        - 35
+    ligand:
+      smiles: Cc1cccc2c(-c3ccccc3Cl)c(C(=O)O)[nH]c12
+      ions:
+      - '[Zn+2]'
+      - '[Zn+2]'
+      reference_sdf: 7AFX_R9K_ligand.sdf
+  7AKL_RK5:
+    protein:
+      path: 7AKL_RK5_protein.pdb
+      residues:
+        A:
+        - 18
+        - 19
+        - 23
+        - 26
+        - 39
+        - 41
+        - 56
+        - 60
+        - 75
+        - 91
+        - 92
+        - 93
+        - 94
+        - 95
+        - 147
+        - 159
+        - 160
+        - 161
+    ligand:
+      smiles: Cc1oc2ccc(-c3cc(N)nc(N)c3)cc2c1C
+      reference_sdf: 7AKL_RK5_ligand.sdf
+  7AN5_RDH:
+    protein:
+      path: 7AN5_RDH_protein.pdb
+      residues:
+        A:
+        - 10
+        - 12
+        - 14
+        - 38
+        - 56
+        - 75
+        - 81
+        - 83
+        - 84
+        - 105
+        - 106
+        - 107
+        - 108
+        - 109
+        - 110
+        - 147
+        - 148
+        - 183
+        - 184
+        - 239
+        - 243
+    ligand:
+      smiles: C=C(Oc1cccc(C(=O)O)c1)C(=O)O
+      reference_sdf: 7AN5_RDH_ligand.sdf
+  7B2C_TP7:
+    protein:
+      path: 7B2C_TP7_protein.pdb
+      residues:
+        A:
+        - 299
+        - 355
+        - 359
+        - 360
+        - 366
+        - 479
+        - 513
+        - 514
+        - 515
+        - 516
+        B:
+        - 384
+        - 385
+        - 390
+        - 391
+        - 392
+        - 402
+        - 403
+        - 404
+        D:
+        - 256
+        - 288
+        - 304
+    ligand:
+      smiles: C[C@@H](OP(=O)(O)O)[C@H](NC(=O)CCCCCCS)C(=O)O
+      reference_sdf: 7B2C_TP7_ligand.sdf
+  7B94_ANP:
+    protein:
+      path: 7B94_ANP_protein.pdb
+      residues:
+        A:
+        - 42
+        - 43
+        - 44
+        - 45
+        - 46
+        - 47
+        - 48
+        - 49
+        - 50
+        - 63
+        - 65
+        - 95
+        - 111
+        - 112
+        - 113
+        - 114
+        - 117
+        - 118
+        - 120
+        - 121
+        - 158
+        - 160
+        - 162
+        - 163
+        - 165
+        - 175
+        - 176
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@@](=O)(O)O[P@](=O)(O)NP(=O)(O)O)[C@@H](O)[C@H]1O
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 7B94_ANP_ligand.sdf
+  7BCP_GCO:
+    protein:
+      path: 7BCP_GCO_protein.pdb
+      residues:
+        A:
+        - 11
+        - 12
+        - 13
+        - 51
+        - 67
+        - 68
+        - 69
+        - 124
+        - 127
+        - 148
+        - 150
+        - 171
+        - 186
+        - 187
+        - 188
+        - 189
+        - 215
+    ligand:
+      smiles: O=C(O)[C@H](O)[C@@H](O)[C@H](O)[C@H](O)CO
+      reference_sdf: 7BCP_GCO_ligand.sdf
+  7BJJ_TVW:
+    protein:
+      path: 7BJJ_TVW_protein.pdb
+      residues:
+        A:
+        - 13
+        - 14
+        - 21
+        - 34
+        - 58
+        - 74
+        - 75
+        - 76
+        - 77
+        - 127
+        - 137
+    ligand:
+      smiles: Nc1ncnc2n[nH]cc12
+      reference_sdf: 7BJJ_TVW_ligand.sdf
+  7BKA_4JC:
+    protein:
+      path: 7BKA_4JC_protein.pdb
+      residues:
+        D:
+        - 25
+        - 31
+        - 82
+        - 85
+        - 86
+        - 89
+        - 101
+        - 102
+        - 103
+        - 158
+        E:
+        - 70
+        - 71
+        - 77
+        - 78
+        - 79
+        - 80
+        - 113
+    ligand:
+      smiles: CCc1ccc(S(N)(=O)=O)cc1
+      reference_sdf: 7BKA_4JC_ligand.sdf
+  7BMI_U4B:
+    protein:
+      path: 7BMI_U4B_protein.pdb
+      residues:
+        A:
+        - 296
+        - 298
+        - 339
+        - 341
+        - 347
+        - 350
+        - 359
+        - 361
+        - 382
+        - 390
+        - 392
+        - 396
+        - 398
+        - 406
+        - 408
+        - 410
+        B:
+        - 5
+    ligand:
+      smiles: O=C(O)c1ccnc(C(=O)O)c1F
+      ions:
+      - '[Mn+2]'
+      reference_sdf: 7BMI_U4B_ligand.sdf
+  7BNH_BEZ:
+    protein:
+      path: 7BNH_BEZ_protein.pdb
+      residues:
+        A:
+        - 28
+        - 30
+        - 36
+        - 61
+        - 77
+        - 92
+        B:
+        - 25
+        - 90
+        - 92
+    ligand:
+      smiles: O=C(O)c1ccccc1
+      reference_sdf: 7BNH_BEZ_ligand.sdf
+  7BTT_F8R:
+    protein:
+      path: 7BTT_F8R_protein.pdb
+      residues:
+        A:
+        - 30
+        - 31
+        - 32
+        - 33
+        - 34
+        - 38
+        - 40
+        - 51
+        - 53
+        - 83
+        - 99
+        - 100
+        - 101
+        - 102
+        - 103
+        - 105
+        - 106
+        - 109
+        - 156
+        - 157
+        - 159
+        - 172
+        - 173
+    ligand:
+      smiles: COc1cc2c(cc1Nc1nc(Nc3ccccc3S(=O)(=O)C(C)C)c3[nH]ccc3n1)N(C(=O)CN(C)C)CC2
+      reference_sdf: 7BTT_F8R_ligand.sdf
+  7C0U_FGO:
+    protein:
+      path: 7C0U_FGO_protein.pdb
+      residues:
+        B:
+        - 24
+        - 25
+        - 30
+        - 58
+        - 59
+        - 81
+        - 83
+        - 84
+        - 127
+        - 129
+        - 173
+        - 175
+        - 177
+        - 226
+        - 228
+        - 229
+        - 242
+        - 244
+        - 245
+        - 248
+        - 276
+        - 277
+        - 316
+        - 352
+        - 358
+        - 359
+        - 362
+        - 363
+    ligand:
+      smiles: Nc1nc2c(ncn2[C@@H]2O[C@H](CO[P@](=O)(O)O[C@H]3[C@@H](O)[C@H](n4ccc(=O)[nH]c4=O)O[C@@H]3CO)[C@H]3CC(O)(O)C[C@H]32)c(=O)[nH]1
+      reference_sdf: 7C0U_FGO_ligand.sdf
+  7C3U_AZG:
+    protein:
+      path: 7C3U_AZG_protein.pdb
+      residues:
+        B:
+        - 48
+        - 66
+        - 68
+        - 76
+        - 77
+        - 78
+        - 79
+        - 112
+        - 136
+        - 141
+        - 142
+        - 143
+    ligand:
+      smiles: Nc1nc(O)c2[nH]nnc2n1
+      ions:
+      - '[Zn+2]'
+      reference_sdf: 7C3U_AZG_ligand.sdf
+  7C8Q_DSG:
+    protein:
+      path: 7C8Q_DSG_protein.pdb
+      residues:
+        A:
+        - 11
+        - 12
+        - 13
+        - 25
+        - 53
+        - 54
+        - 55
+        - 56
+        - 86
+        - 87
+        - 88
+        - 89
+        - 90
+        - 113
+        - 114
+        - 161
+        B:
+        - 241
+        - 275
+        - 277
+    ligand:
+      smiles: NC(=O)C[C@@H](N)C(=O)O
+      reference_sdf: 7C8Q_DSG_ligand.sdf
+  7CD9_FVR:
+    protein:
+      path: 7CD9_FVR_protein.pdb
+      residues:
+        A:
+        - 20
+        - 22
+        - 24
+        - 78
+        - 80
+        - 85
+        - 87
+        - 107
+        - 109
+        - 110
+        - 111
+        - 168
+        - 196
+        - 204
+        B:
+        - 80
+        - 83
+        - 85
+        - 109
+    ligand:
+      smiles: CN1C[C@H](Nc2nc3cc[nH]c3c(=O)n2C)C[C@H](c2ccc(OCc3ccccc3)cc2)C1
+      reference_sdf: 7CD9_FVR_ligand.sdf
+  7CIJ_G0C:
+    protein:
+      path: 7CIJ_G0C_protein.pdb
+      residues:
+        A:
+        - 62
+        - 64
+        - 73
+        - 392
+        - 393
+        B:
+        - 46
+        - 47
+        - 48
+        - 120
+        - 121
+        - 122
+        - 123
+        - 125
+        - 162
+        - 164
+        - 248
+        - 249
+        - 250
+        - 303
+        - 305
+        - 358
+        - 360
+        - 361
+    ligand:
+      smiles: CSCCC/N=C/c1c(COP(=O)(O)O)cnc(C)c1O
+      reference_sdf: 7CIJ_G0C_ligand.sdf
+  7CL8_TES:
+    protein:
+      path: 7CL8_TES_protein.pdb
+      residues:
+        A:
+        - 79
+        - 80
+        - 83
+        - 88
+        - 167
+        - 170
+        - 171
+        - 227
+        - 230
+        - 231
+        - 234
+        - 235
+        - 239
+        - 282
+        - 285
+        - 286
+        - 389
+    ligand:
+      smiles: C[C@]12CC[C@H]3[C@@H](CCC4=CC(=O)CC[C@@]43C)[C@@H]1CC[C@@H]2O
+      reference_sdf: 7CL8_TES_ligand.sdf
+  7CNQ_G8X:
+    protein:
+      path: 7CNQ_G8X_protein.pdb
+      residues:
+        A:
+        - 25
+        - 59
+        - 60
+        - 61
+        - 62
+        - 193
+        - 196
+        - 223
+        - 282
+        - 283
+        - 284
+        - 500
+        - 520
+    ligand:
+      smiles: O=C(O)[C@H]1NCC[C@H]1O
+      reference_sdf: 7CNQ_G8X_ligand.sdf
+  7CNS_PMV:
+    protein:
+      path: 7CNS_PMV_protein.pdb
+      residues:
+        A:
+        - 47
+        - 48
+        - 49
+        - 50
+        - 53
+        - 79
+        - 80
+        - 81
+        - 129
+        - 130
+        - 131
+        - 345
+        - 361
+        - 365
+        B:
+        - 28
+        - 62
+        - 63
+        - 64
+        - 65
+    ligand:
+      smiles: C[C@@](O)(CCOP(=O)(O)O)CC(=O)O
+      reference_sdf: 7CNS_PMV_ligand.sdf
+  7CTM_BDP:
+    protein:
+      path: 7CTM_BDP_protein.pdb
+      residues:
+        A:
+        - 13
+        - 124
+        - 125
+        - 126
+        - 127
+        - 161
+        - 210
+        - 245
+        - 267
+        - 270
+        - 299
+        - 302
+    ligand:
+      smiles: O=C(O)[C@H]1O[C@@H](O)[C@H](O)[C@@H](O)[C@@H]1O
+      reference_sdf: 7CTM_BDP_ligand.sdf
+  7CUO_PHB:
+    protein:
+      path: 7CUO_PHB_protein.pdb
+      residues:
+        B:
+        - 97
+        - 108
+        - 119
+        - 120
+        - 121
+        - 122
+        - 128
+        - 132
+        - 133
+        - 134
+        - 135
+        - 185
+        - 189
+        - 190
+        - 193
+        - 194
+        - 195
+        - 196
+        - 211
+        - 213
+    ligand:
+      smiles: O=C(O)c1ccc(O)cc1
+      reference_sdf: 7CUO_PHB_ligand.sdf
+  7D5C_GV6:
+    protein:
+      path: 7D5C_GV6_protein.pdb
+      residues:
+        A:
+        - 38
+        - 39
+        - 40
+        - 41
+        - 47
+        - 49
+        - 50
+        - 52
+        - 53
+        - 78
+        - 123
+        - 522
+        - 525
+        - 553
+        - 554
+        - 555
+        - 556
+        - 558
+        - 562
+        - 586
+        - 587
+        - 588
+        - 596
+        - 598
+    ligand:
+      smiles: CC[C@H](C)[C@H](N)C(=O)O[P@](=O)(O)OC[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O
+      reference_sdf: 7D5C_GV6_ligand.sdf
+  7D6O_MTE:
+    protein:
+      path: 7D6O_MTE_protein.pdb
+      residues:
+        B:
+        - 110
+        - 111
+        - 148
+        - 757
+        - 758
+        - 759
+        - 760
+        - 872
+        - 873
+        - 999
+        - 1000
+        - 1001
+        - 1003
+        - 1038
+        - 1039
+        - 1040
+        - 1041
+        - 1042
+        - 1043
+        - 1044
+        - 1155
+        - 1221
+        - 1222
+    ligand:
+      smiles: Nc1nc2c(c(=O)[nH]1)N[C@H]1C(S)=C(S)[C@@H](COP(=O)(O)O)O[C@H]1N2
+      reference_sdf: 7D6O_MTE_ligand.sdf
+  7DKT_GLF:
+    protein:
+      path: 7DKT_GLF_protein.pdb
+      residues:
+        A:
+        - 409
+        - 413
+        - 415
+        - 418
+        - 420
+        - 421
+        - 475
+        - 491
+        - 499
+        - 559
+        - 560
+        - 561
+        - 695
+        - 700
+        - 745
+        - 754
+        - 758
+        - 760
+    ligand:
+      smiles: OC[C@H]1O[C@H](F)[C@H](O)[C@@H](O)[C@@H]1O
+      reference_sdf: 7DKT_GLF_ligand.sdf
+  7DQL_4CL:
+    protein:
+      path: 7DQL_4CL_protein.pdb
+      residues:
+        B:
+        - 28
+        - 31
+        - 32
+        - 35
+        - 56
+        - 57
+        - 58
+        - 63
+        - 79
+        - 87
+        - 132
+        - 133
+        - 134
+    ligand:
+      smiles: Oc1ccc(Cl)cc1O
+      reference_sdf: 7DQL_4CL_ligand.sdf
+  7DUA_HJ0:
+    protein:
+      path: 7DUA_HJ0_protein.pdb
+      residues:
+        B:
+        - 28
+        - 29
+        - 33
+        - 36
+        - 54
+        - 56
+        - 73
+        - 77
+        - 86
+        - 100
+        - 102
+        - 103
+        - 104
+        - 105
+        - 108
+        - 109
+        - 153
+        - 163
+        - 164
+        - 165
+    ligand:
+      smiles: Cc1cc(NC(=O)c2cn(C3(C)CC3)c3ncnc(N)c23)n[nH]1
+      reference_sdf: 7DUA_HJ0_ligand.sdf
+  7E4L_MDN:
+    protein:
+      path: 7E4L_MDN_protein.pdb
+      residues:
+        A:
+        - 133
+        - 163
+        - 165
+        - 196
+        - 221
+        - 222
+        - 223
+        - 224
+        - 225
+        - 226
+    ligand:
+      smiles: O=P(O)(O)CP(=O)(O)O
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 7E4L_MDN_ligand.sdf
+  7EBG_J0L:
+    protein:
+      path: 7EBG_J0L_protein.pdb
+      residues:
+        A:
+        - 226
+        - 229
+        - 230
+        - 233
+        - 257
+        - 258
+        - 259
+        - 261
+        - 263
+        - 264
+        - 272
+        - 279
+        - 295
+        - 303
+        - 304
+        - 305
+    ligand:
+      smiles: CNc1cccc2c1NC(=O)C2(C)C
+      reference_sdf: 7EBG_J0L_ligand.sdf
+  7ECR_SIN:
+    protein:
+      path: 7ECR_SIN_protein.pdb
+      residues:
+        B:
+        - 78
+        - 79
+        - 80
+        - 99
+        - 102
+        - 114
+        - 150
+        - 151
+        - 152
+        - 153
+        - 154
+        - 181
+        - 193
+        - 346
+        - 379
+        - 382
+        - 383
+        - 386
+    ligand:
+      smiles: O=C(O)CCC(=O)O
+      reference_sdf: 7ECR_SIN_ligand.sdf
+  7ED2_A3P:
+    protein:
+      path: 7ED2_A3P_protein.pdb
+      residues:
+        A:
+        - 69
+        B:
+        - 40
+        - 44
+        - 47
+        - 48
+        - 67
+        - 69
+        - 70
+        - 71
+        - 72
+        - 73
+        - 83
+        - 84
+        - 85
+        - 86
+        - 106
+        - 148
+        - 151
+        - 152
+        - 155
+        - 156
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)O)[C@@H](OP(=O)(O)O)[C@H]1O
+      ions:
+      - '[Mg+2]'
+      - '[Mg+2]'
+      reference_sdf: 7ED2_A3P_ligand.sdf
+  7ELT_TYM:
+    protein:
+      path: 7ELT_TYM_protein.pdb
+      residues:
+        A:
+        - 5
+        - 6
+        - 7
+        - 8
+        - 9
+        - 16
+        - 18
+        - 19
+        - 22
+        - 23
+        - 41
+        - 44
+        - 108
+        - 128
+        - 132
+        - 135
+        - 136
+        - 144
+        - 145
+        - 146
+        - 147
+        - 148
+        - 149
+        - 150
+        - 154
+        - 183
+        - 184
+        - 185
+        - 186
+        - 195
+        - 196
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@@](=O)(O)OC(=O)[C@@H](N)Cc2c[nH]c3ccccc23)[C@@H](O)[C@H]1O
+      reference_sdf: 7ELT_TYM_ligand.sdf
+  7EPV_FDA:
+    protein:
+      path: 7EPV_FDA_protein.pdb
+      residues:
+        A:
+        - 11
+        - 12
+        - 13
+        - 14
+        - 15
+        - 16
+        - 17
+        - 34
+        - 35
+        - 36
+        - 37
+        - 48
+        - 49
+        - 50
+        - 106
+        - 110
+        - 126
+        - 127
+        - 128
+        - 156
+        - 157
+        - 158
+        - 159
+        - 181
+        - 273
+        - 295
+        - 296
+        - 297
+        - 298
+        - 304
+        - 307
+        - 308
+        - 309
+        - 310
+        - 311
+    ligand:
+      smiles: Cc1cc2c(cc1C)N(C[C@H](O)[C@H](O)[C@H](O)CO[P@@](=O)(O)O[P@@](=O)(O)OC[C@H]1O[C@@H](n3cnc4c(N)ncnc43)[C@H](O)[C@@H]1O)c1[nH]c(=O)[nH]c(=O)c1N2
+      reference_sdf: 7EPV_FDA_ligand.sdf
+  7ES1_UDP:
+    protein:
+      path: 7ES1_UDP_protein.pdb
+      residues:
+        A:
+        - 11
+        - 12
+        - 15
+        - 201
+        - 203
+        - 223
+        - 226
+        - 227
+        - 228
+        - 229
+        - 230
+        - 254
+        - 284
+        - 285
+        - 286
+        - 287
+        - 288
+        - 289
+        - 303
+        - 305
+        - 306
+        - 307
+        - 308
+        - 311
+        - 328
+    ligand:
+      smiles: O=c1ccn([C@@H]2O[C@H](CO[P@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)[nH]1
+      reference_sdf: 7ES1_UDP_ligand.sdf
+  7F51_BA7:
+    protein:
+      path: 7F51_BA7_protein.pdb
+      residues:
+        A:
+        - 25
+        - 26
+        - 27
+        - 30
+        - 37
+        - 38
+        - 57
+        - 60
+        - 108
+        - 109
+        - 110
+        - 128
+        - 174
+        - 175
+        - 176
+        - 177
+        - 215
+        - 216
+        - 217
+        - 218
+        - 219
+        - 221
+        - 240
+        - 241
+        - 242
+        - 243
+        - 245
+        - 261
+        - 262
+        - 263
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@](=O)(O)O[P@](=O)(O)OC[C@H]2O[C@@H](O)[C@H](OC(=O)c3ccccc3)[C@@H]2O)[C@@H](O)[C@H]1O
+      reference_sdf: 7F51_BA7_ligand.sdf
+  7F5D_EUO:
+    protein:
+      path: 7F5D_EUO_protein.pdb
+      residues:
+        A:
+        - 27
+        - 28
+        - 30
+        - 31
+        - 32
+        - 33
+        - 36
+        - 40
+        - 78
+        - 79
+        - 82
+        - 83
+        - 89
+    ligand:
+      smiles: CNc1cc(-c2ccc3[nH]ccc3c2)nc(S(C)(=O)=O)n1
+      reference_sdf: 7F5D_EUO_ligand.sdf
+  7F8T_FAD:
+    protein:
+      path: 7F8T_FAD_protein.pdb
+      residues:
+        A:
+        - 248
+        - 260
+        - 261
+        - 262
+        - 263
+        - 264
+        - 267
+        - 294
+        - 297
+        - 298
+        - 301
+        - 302
+        - 305
+        - 368
+        - 369
+        - 370
+        - 371
+        - 374
+        - 375
+        - 377
+        - 378
+        - 399
+        - 403
+        - 405
+        - 406
+        - 407
+        - 408
+        - 410
+        - 411
+        - 414
+        - 415
+        - 417
+        - 418
+    ligand:
+      smiles: Cc1cc2nc3c(=O)[nH]c(=O)nc-3n(C[C@H](O)[C@H](O)[C@H](O)CO[P@@](=O)(O)O[P@](=O)(O)OC[C@H]3O[C@@H](n4cnc5c(N)ncnc54)[C@H](O)[C@@H]3O)c2cc1C
+      reference_sdf: 7F8T_FAD_ligand.sdf
+  7FB7_8NF:
+    protein:
+      path: 7FB7_8NF_protein.pdb
+      residues:
+        A:
+        - 21
+        - 30
+        - 31
+        - 32
+        - 77
+        - 78
+        - 79
+        - 94
+        - 108
+        - 148
+    ligand:
+      smiles: Cc1cc(C)c(N)cn1
+      reference_sdf: 7FB7_8NF_ligand.sdf
+  7FHA_ADX:
+    protein:
+      path: 7FHA_ADX_protein.pdb
+      residues:
+        A:
+        - 186
+        - 187
+        - 188
+        - 189
+        - 190
+        - 193
+        - 196
+        - 199
+        - 263
+        - 274
+        - 287
+        - 288
+        - 289
+        - 290
+        - 291
+        - 292
+        - 293
+        - 294
+        - 329
+        - 330
+        - 331
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@@](=O)(O)OS(=O)(=O)O)[C@@H](O)[C@H]1O
+      reference_sdf: 7FHA_ADX_ligand.sdf
+  7FRX_O88:
+    protein:
+      path: 7FRX_O88_protein.pdb
+      residues:
+        E:
+        - 16
+        - 17
+        - 20
+        - 206
+        - 241
+        - 242
+        - 278
+        - 281
+        - 282
+        - 285
+        G:
+        - 16
+        - 17
+        - 20
+        - 208
+        - 243
+        - 244
+        - 279
+        - 280
+        - 283
+        - 284
+        - 287
+    ligand:
+      smiles: O=S(=O)(NCc1ccc(S(=O)(=O)c2ccc(O)c(O)c2)cc1)c1ccc(O)c(O)c1
+      reference_sdf: 7FRX_O88_ligand.sdf
+  7FT9_4MB:
+    protein:
+      path: 7FT9_4MB_protein.pdb
+      residues:
+        C:
+        - 98
+        - 102
+        - 103
+        - 104
+        - 106
+        - 107
+        - 108
+        - 150
+        - 153
+        - 154
+        D:
+        - 98
+        - 99
+    ligand:
+      smiles: CS(=O)(=O)Nc1ccc(C(=O)O)cc1
+      reference_sdf: 7FT9_4MB_ligand.sdf
+  7JG0_GAR:
+    protein:
+      path: 7JG0_GAR_protein.pdb
+      residues:
+        A:
+        - 9
+        - 10
+        - 11
+        - 12
+        - 13
+        - 14
+        - 86
+        - 87
+        - 88
+        - 89
+        - 107
+        - 108
+        - 109
+        - 117
+        - 118
+        - 121
+        - 144
+        - 170
+        - 173
+    ligand:
+      smiles: NCC(=O)N[C@@H]1O[C@H](COP(=O)([O-])[O-])[C@@H](O)[C@H]1O
+      reference_sdf: 7JG0_GAR_ligand.sdf
+  7JHQ_VAJ:
+    protein:
+      path: 7JHQ_VAJ_protein.pdb
+      residues:
+        A:
+        - 46
+        - 77
+        - 80
+        - 92
+        - 93
+        - 95
+        - 133
+        - 184
+        - 185
+        - 186
+        - 188
+        - 189
+        - 222
+        - 225
+    ligand:
+      smiles: O=C(O)c1ccc(-c2cccc(C(=O)O)c2)cc1
+      ions:
+      - '[Na+]'
+      reference_sdf: 7JHQ_VAJ_ligand.sdf
+  7JMV_4NC:
+    protein:
+      path: 7JMV_4NC_protein.pdb
+      residues:
+        A:
+        - 31
+        - 35
+        - 54
+        - 55
+        - 56
+        - 57
+        - 66
+        - 80
+        - 82
+        - 106
+        - 125
+        - 145
+        - 147
+        - 178
+        - 182
+    ligand:
+      smiles: O=[N+]([O-])c1ccc(O)c(O)c1
+      reference_sdf: 7JMV_4NC_ligand.sdf
+  7JXX_VP7:
+    protein:
+      path: 7JXX_VP7_protein.pdb
+      residues:
+        A:
+        - 19
+        - 20
+        - 26
+        - 39
+        - 41
+        - 55
+        - 59
+        - 69
+        - 83
+        - 85
+        - 86
+        - 87
+        - 88
+        - 89
+        - 153
+        - 154
+        - 155
+        - 156
+    ligand:
+      smiles: CC(C)(O)C#Cc1ccc2[nH]c3c(c2c1)-c1nc(N)ncc1CCC3
+      reference_sdf: 7JXX_VP7_ligand.sdf
+  7JY3_VUD:
+    protein:
+      path: 7JY3_VUD_protein.pdb
+      residues:
+        A:
+        - 1
+        - 2
+        - 7
+        - 73
+        - 74
+        - 76
+        - 131
+        C:
+        - 74
+        - 75
+        - 76
+        - 77
+        - 78
+        - 131
+        - 134
+        - 135
+        - 140
+    ligand:
+      smiles: C[C@H](Oc1cc2cc(F)ccc2nc1N)c1[nH]c(=O)ccc1-n1cccn1
+      reference_sdf: 7JY3_VUD_ligand.sdf
+  7K0V_VQP:
+    protein:
+      path: 7K0V_VQP_protein.pdb
+      residues:
+        B:
+        - 15
+        - 23
+        - 33
+        - 34
+        - 35
+        - 53
+        - 56
+        - 57
+        - 60
+        - 65
+        - 66
+        - 79
+        - 81
+        - 82
+        - 83
+        - 84
+        - 119
+        - 124
+        - 125
+        - 126
+        - 135
+        - 144
+        - 145
+        - 146
+        - 147
+        - 149
+        - 152
+        - 153
+    ligand:
+      smiles: Cc1cc(F)c(NC(=O)NCCC(C)(C)C)cc1Nc1ccc2ncn(C)c(=O)c2c1F
+      reference_sdf: 7K0V_VQP_ligand.sdf
+  7KB1_WBJ:
+    protein:
+      path: 7KB1_WBJ_protein.pdb
+      residues:
+        A:
+        - 57
+        - 59
+        B:
+        - 86
+        - 87
+        - 88
+        - 91
+        - 112
+        - 115
+        - 156
+        - 160
+        - 185
+        - 187
+        - 188
+        - 206
+        - 208
+        - 209
+        - 218
+        - 219
+        - 368
+        - 369
+        - 370
+        - 384
+        - 404
+    ligand:
+      smiles: C=C/C(=N\Cc1c(COP(=O)(O)O)cnc(C)c1O)C(=O)O
+      reference_sdf: 7KB1_WBJ_ligand.sdf
+  7KC5_BJZ:
+    protein:
+      path: 7KC5_BJZ_protein.pdb
+      residues:
+        C:
+        - 3
+        - 5
+        - 7
+        - 26
+        - 30
+        - 33
+        - 34
+        - 39
+        - 104
+        - 106
+        - 108
+        - 128
+        - 130
+        - 132
+        - 157
+        - 160
+        - 171
+        - 172
+        - 175
+        - 176
+        - 178
+        - 179
+    ligand:
+      smiles: CN1C(=O)N(c2cc(Cl)cc(Cl)c2)C(=O)[C@]12CN(c1ccc(C(=O)O)cn1)C[C@H]2c1ccc(C#N)cc1
+      reference_sdf: 7KC5_BJZ_ligand.sdf
+  7KM8_WPD:
+    protein:
+      path: 7KM8_WPD_protein.pdb
+      residues:
+        A:
+        - 6
+        - 7
+        - 8
+        - 21
+        - 28
+        - 29
+        - 31
+        - 32
+        - 33
+        - 36
+        - 47
+        - 51
+        - 52
+        - 55
+        - 58
+        - 59
+        - 61
+        - 93
+        - 94
+        - 99
+        - 112
+        B:
+        - 24
+        - 145
+        - 146
+    ligand:
+      smiles: CCc1nc(N)nc(N)c1OCCCOc1cccc(C[C@@H](C(=O)O)C(F)F)c1
+      reference_sdf: 7KM8_WPD_ligand.sdf
+  7KQU_YOF:
+    protein:
+      path: 7KQU_YOF_protein.pdb
+      residues:
+        B:
+        - 79
+        - 83
+        - 136
+        - 141
+        - 144
+        - 151
+        - 152
+        - 153
+        - 199
+        - 203
+        - 204
+        - 205
+        - 225
+        - 229
+    ligand:
+      smiles: N[C@@H](Cc1ccc(O)c(F)c1)C(=O)O
+      reference_sdf: 7KQU_YOF_ligand.sdf
+  7KRU_ATP:
+    protein:
+      path: 7KRU_ATP_protein.pdb
+      residues:
+        B:
+        - 29
+        - 30
+        - 31
+        A:
+        - 7
+        - 8
+        - 9
+        - 10
+        - 11
+        - 12
+        - 69
+        - 170
+        - 193
+        - 194
+        - 195
+        - 196
+        - 197
+        - 198
+        - 228
+        - 229
+        - 232
+        - 266
+        - 269
+        - 270
+        - 273
+        - 340
+        - 341
+        - 342
+        - 344
+        - 345
+        - 366
+        - 367
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@@](=O)(O)O[P@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 7KRU_ATP_ligand.sdf
+  7KZ9_XN7:
+    protein:
+      path: 7KZ9_XN7_protein.pdb
+      residues:
+        B:
+        - 21
+        - 22
+        - 23
+        - 24
+        - 26
+        - 98
+        - 363
+        - 376
+        - 377
+        - 378
+        - 379
+        - 380
+        - 381
+        - 387
+        - 401
+    ligand:
+      smiles: O=C(CNCCO)NCCO
+      reference_sdf: 7KZ9_XN7_ligand.sdf
+  7L00_XCJ:
+    protein:
+      path: 7L00_XCJ_protein.pdb
+      residues:
+        A:
+        - 21
+        - 22
+        - 44
+        - 45
+        - 71
+        - 95
+        - 96
+        - 97
+        - 98
+        - 116
+        - 117
+        - 118
+        - 122
+        - 137
+        - 142
+        - 143
+        - 144
+        - 145
+        - 146
+        - 261
+        - 276
+    ligand:
+      smiles: CS(=O)(=O)c1ccc2nc(NC(=O)Cc3csc(-n4cccc4)n3)sc2c1
+      ions:
+      - '[Na+]'
+      reference_sdf: 7L00_XCJ_ligand.sdf
+  7L03_F9F:
+    protein:
+      path: 7L03_F9F_protein.pdb
+      residues:
+        A:
+        - 22
+        - 49
+        - 59
+        - 60
+        - 64
+        - 100
+        - 102
+        - 127
+        - 129
+        - 153
+        - 175
+        - 177
+        - 179
+        - 183
+        - 184
+        - 185
+        - 212
+        - 213
+        - 214
+        - 232
+        - 233
+        - 234
+        - 235
+        - 236
+        B:
+        - 17
+        - 18
+    ligand:
+      smiles: O=P(O)(O)OCCNS(=O)(=O)c1ccc(OC(F)(F)F)cc1
+      reference_sdf: 7L03_F9F_ligand.sdf
+  7L5F_XNG:
+    protein:
+      path: 7L5F_XNG_protein.pdb
+      residues:
+        A:
+        - 16
+        - 64
+        - 67
+        - 68
+        - 69
+        - 73
+        - 104
+        - 106
+        - 107
+        - 108
+        - 109
+        - 135
+        - 136
+        - 137
+        - 138
+        - 169
+        - 191
+        - 194
+        - 235
+    ligand:
+      smiles: CCCCCCCCCC(=O)NCCCC(=O)O
+      ions:
+      - '[Co+2]'
+      - '[Co+2]'
+      reference_sdf: 7L5F_XNG_ligand.sdf
+  7L7C_XQ1:
+    protein:
+      path: 7L7C_XQ1_protein.pdb
+      residues:
+        A:
+        - 32
+        - 35
+        - 36
+        - 39
+        - 40
+        - 151
+        - 163
+        - 164
+        - 168
+        - 169
+        - 170
+        - 171
+        - 174
+        B:
+        - 29
+        - 65
+        - 66
+        - 68
+    ligand:
+      smiles: COc1cccc(-c2ccc3c(CC(=O)O)coc3c2)c1
+      reference_sdf: 7L7C_XQ1_ligand.sdf
+  7LCU_XTA:
+    protein:
+      path: 7LCU_XTA_protein.pdb
+      residues:
+        A:
+        - 43
+        - 44
+        - 82
+        - 85
+        - 117
+        - 118
+        - 122
+        - 123
+        - 124
+        - 127
+        - 131
+        - 143
+        - 144
+        - 145
+        - 146
+        - 147
+        - 155
+        - 156
+        - 157
+        - 158
+        - 182
+        - 199
+    ligand:
+      smiles: CN1CCN(c2ncc(Oc3cc(CN4CCC(CC(=O)O)CC4)cc(-c4cc(Cl)cc(Cl)c4)n3)cn2)CC1
+      reference_sdf: 7LCU_XTA_ligand.sdf
+  7LEV_0JO:
+    protein:
+      path: 7LEV_0JO_protein.pdb
+      residues:
+        B:
+        - 84
+        - 85
+        - 86
+        - 108
+        - 109
+        - 110
+        - 111
+        - 112
+        - 113
+        - 114
+        - 115
+        - 171
+        - 172
+        - 173
+        - 212
+        - 213
+        - 214
+        - 215
+        - 216
+        - 217
+        - 218
+        - 219
+        - 284
+        - 285
+        - 286
+        - 330
+        - 332
+        - 333
+        - 359
+        - 360
+        - 364
+    ligand:
+      smiles: C=C(/N=C/c1c(COP(=O)(O)O)cnc(C)c1O)C(=O)O
+      reference_sdf: 7LEV_0JO_ligand.sdf
+  7LJN_GTP:
+    protein:
+      path: 7LJN_GTP_protein.pdb
+      residues:
+        C:
+        - 56
+        - 57
+        - 58
+        - 63
+        - 64
+        - 65
+        - 75
+        - 77
+        - 155
+        - 216
+        - 219
+        - 229
+        - 232
+        - 233
+        - 234
+        - 237
+        - 285
+        - 286
+        - 287
+        - 289
+        - 290
+    ligand:
+      smiles: Nc1nc2c(ncn2[C@@H]2O[C@H](CO[P@](=O)(O)O[P@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)[nH]1
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 7LJN_GTP_ligand.sdf
+  7LMO_NYO:
+    protein:
+      path: 7LMO_NYO_protein.pdb
+      residues:
+        A:
+        - 37
+        - 39
+        - 45
+        - 90
+        - 97
+        - 98
+        - 99
+        - 100
+        - 101
+        - 102
+        - 103
+        B:
+        - 37
+        - 44
+        - 45
+        - 46
+        - 47
+        - 50
+        - 56
+        - 101
+    ligand:
+      smiles: CCN(CC)c1ccc2c(C)c(CCN3C(=O)N[C@@]4(CCN(C(=O)c5c[nH]cn5)C4)C3=O)c(=O)oc2c1
+      reference_sdf: 7LMO_NYO_ligand.sdf
+  7LOE_Y84:
+    protein:
+      path: 7LOE_Y84_protein.pdb
+      residues:
+        A:
+        - 78
+        - 84
+        - 87
+        - 88
+        - 91
+        - 99
+        - 102
+        - 103
+        - 111
+        - 118
+        - 121
+        - 133
+        - 153
+    ligand:
+      smiles: Fc1cccc2ccccc12
+      reference_sdf: 7LOE_Y84_ligand.sdf
+  7LOU_IFM:
+    protein:
+      path: 7LOU_IFM_protein.pdb
+      residues:
+        B:
+        - 265
+        - 269
+        - 272
+        - 285
+        - 382
+        - 383
+        - 384
+        - 464
+        - 465
+        - 468
+        - 469
+        - 470
+        - 519
+    ligand:
+      smiles: OC[C@H]1CNC[C@@H](O)[C@@H]1O
+      reference_sdf: 7LOU_IFM_ligand.sdf
+  7LT0_ONJ:
+    protein:
+      path: 7LT0_ONJ_protein.pdb
+      residues:
+        A:
+        - 33
+        - 36
+        - 37
+        - 39
+        - 40
+        - 43
+        - 78
+        - 81
+        - 82
+        - 83
+        - 87
+        - 88
+        - 92
+        - 123
+        - 135
+        - 137
+        - 147
+        - 169
+        - 171
+    ligand:
+      smiles: Cc1ccc(Sc2cc(C(=O)N3Cc4ccccc4C3)ccc2O)cc1C
+      reference_sdf: 7LT0_ONJ_ligand.sdf
+  7LZD_YHY:
+    protein:
+      path: 7LZD_YHY_protein.pdb
+      residues:
+        A:
+        - 124
+        - 134
+        - 138
+        - 142
+        - 149
+        - 150
+        - 151
+        - 152
+        - 172
+        - 173
+        - 174
+        - 209
+        - 211
+        - 213
+        - 216
+        - 217
+        - 218
+        - 219
+        - 221
+        - 234
+    ligand:
+      smiles: Cc1ccc(F)c2cc(C(=O)Nc3cccc(N4CCC(N(C)C)CC4)c3)[nH]c12
+      reference_sdf: 7LZD_YHY_ligand.sdf
+  7M31_TDR:
+    protein:
+      path: 7M31_TDR_protein.pdb
+      residues:
+        D:
+        - 572
+        - 607
+        - 609
+        - 610
+        - 611
+        - 640
+        - 666
+        - 668
+        - 734
+        - 735
+        - 762
+    ligand:
+      smiles: Cc1c[nH]c(=O)[nH]c1=O
+      reference_sdf: 7M31_TDR_ligand.sdf
+  7M3H_YPV:
+    protein:
+      path: 7M3H_YPV_protein.pdb
+      residues:
+        A:
+        - 74
+        - 76
+        - 77
+        - 79
+        - 80
+        - 83
+        - 245
+        - 248
+        - 249
+        - 252
+        - 255
+        - 347
+        - 350
+        - 351
+        - 353
+        - 354
+        - 355
+        - 358
+        - 359
+        - 360
+        - 363
+        - 364
+        - 367
+        B:
+        - 198
+        - 199
+    ligand:
+      smiles: CCCCc1ccc(NS(=O)(=O)c2ccc(O)c(C(=O)O)c2)cc1
+      reference_sdf: 7M3H_YPV_ligand.sdf
+  7M6K_YRJ:
+    protein:
+      path: 7M6K_YRJ_protein.pdb
+      residues:
+        B:
+        - 16
+        - 23
+        - 27
+        - 59
+        - 60
+        - 61
+        - 62
+        - 63
+        - 64
+        - 65
+        - 68
+        - 104
+        - 107
+        - 226
+        - 227
+        - 230
+        - 231
+        - 232
+        - 233
+        - 234
+        - 266
+        - 269
+        - 271
+        - 274
+    ligand:
+      smiles: O=C(NCc1ccc[n+]([C@@H]2O[C@H](COP(=O)(O)O)[C@@H](O)[C@H]2O)c1)Nc1ccc([N+](=O)[O-])cc1
+      reference_sdf: 7M6K_YRJ_ligand.sdf
+  7MFP_Z7P:
+    protein:
+      path: 7MFP_Z7P_protein.pdb
+      residues:
+        C:
+        - 29
+        - 30
+        - 31
+        - 32
+        - 33
+        - 209
+        - 210
+        - 212
+        - 214
+        - 228
+        - 230
+        D:
+        - 4
+        - 5
+        - 59
+        - 60
+        - 61
+        - 87
+        - 88
+        - 90
+        - 126
+        - 129
+        - 152
+        - 154
+        - 155
+        - 174
+        - 176
+        - 178
+        - 179
+        - 180
+        - 187
+        - 188
+        - 300
+        - 302
+        - 303
+    ligand:
+      smiles: Cc1ncc(COP(=O)(O)O)c(/C=N/[C@H]2[C@H](O)[C@@H](O)[C@@H](O[P@](=O)(O)O[P@](=O)(O)OC[C@H]3O[C@@H](n4ccc(=O)[nH]c4=O)[C@H](O)[C@@H]3O)O[C@@H]2C)c1O
+      reference_sdf: 7MFP_Z7P_ligand.sdf
+  7MGT_ZD4:
+    protein:
+      path: 7MGT_ZD4_protein.pdb
+      residues:
+        A:
+        - 92
+        - 93
+        - 94
+        - 95
+        - 97
+        - 101
+        - 148
+        - 150
+        - 151
+        - 154
+        - 218
+        - 219
+        - 223
+        - 224
+        - 235
+        - 236
+        - 237
+        - 239
+        - 263
+        - 267
+        - 271
+    ligand:
+      smiles: Nc1nc(Cl)nc2c1ncn2[C@@H]1O[C@H](CO[P@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O
+      ions:
+      - '[Mg+2]'
+      - '[Mg+2]'
+      reference_sdf: 7MGT_ZD4_ligand.sdf
+  7MGY_ZD1:
+    protein:
+      path: 7MGY_ZD1_protein.pdb
+      residues:
+        A:
+        - 250
+        - 254
+        - 265
+        - 267
+        - 268
+        - 310
+        - 342
+        - 343
+        - 344
+        - 345
+        - 346
+        - 378
+        - 380
+        - 381
+        - 409
+        - 466
+        - 520
+        - 521
+    ligand:
+      smiles: N[C@H]1C=C(CO)[C@@H](O[C@H]2O[C@H](CO)[C@@H](O)[C@H](O)[C@H]2O)[C@H](O)[C@H]1O
+      reference_sdf: 7MGY_ZD1_ligand.sdf
+  7MMH_ZJY:
+    protein:
+      path: 7MMH_ZJY_protein.pdb
+      residues:
+        A:
+        - 60
+        - 61
+        - 62
+        - 74
+        - 75
+        - 76
+        - 77
+        - 97
+        - 100
+        - 142
+        - 151
+        - 154
+        - 155
+        - 156
+        - 157
+        - 158
+        - 173
+        - 174
+        - 175
+        - 176
+        - 177
+        - 178
+        - 187
+    ligand:
+      smiles: COc1ccc2nc(C)c(O[C@@H]3C[C@H]4C(=O)N[C@]5(C(=O)NS(=O)(=O)C6(C)CC6)C[C@H]5/C=C\CCCCC[C@H](NC(=O)OCC5(C(F)(F)F)CC5)C(=O)N4C3)nc2c1
+      reference_sdf: 7MMH_ZJY_ligand.sdf
+  7MOI_HPS:
+    protein:
+      path: 7MOI_HPS_protein.pdb
+      residues:
+        A:
+        - 101
+        - 102
+        - 103
+        - 104
+        - 105
+        - 106
+        - 107
+        - 108
+        - 137
+    ligand:
+      smiles: O=P(O)(O)Oc1ccccc1
+      reference_sdf: 7MOI_HPS_ligand.sdf
+  7MSR_DCA:
+    protein:
+      path: 7MSR_DCA_protein.pdb
+      residues:
+        A:
+        - 20
+        - 21
+        - 23
+        - 24
+        - 25
+        - 26
+        - 27
+        - 45
+        - 46
+        - 47
+        - 49
+        - 78
+        - 79
+        - 80
+        - 81
+        - 83
+        - 87
+        - 90
+        - 102
+        - 103
+        - 104
+        - 130
+        - 131
+        - 132
+        - 144
+        B:
+        - 298
+        - 329
+    ligand:
+      smiles: CCNC(=O)CCNC(=O)[C@H](O)C(C)(C)CO[P@@](=O)(O)O[P@@](=O)(O)OC[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1OP(=O)(O)O
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 7MSR_DCA_ligand.sdf
+  7MWN_WI5:
+    protein:
+      path: 7MWN_WI5_protein.pdb
+      residues:
+        A:
+        - 58
+        - 60
+        - 61
+        - 79
+        - 81
+        - 85
+        - 86
+        - 87
+        - 89
+        - 90
+        - 92
+        - 106
+        - 108
+        - 113
+        - 114
+        - 115
+        - 118
+        - 159
+        - 160
+        - 163
+        - 164
+        - 167
+        B:
+        - 174
+        - 181
+        - 182
+    ligand:
+      smiles: Cc1c(C(=O)c2cccc3ccccc23)c2cccc3c2n1[C@H](CN1CCOCC1)CO3
+      reference_sdf: 7MWN_WI5_ligand.sdf
+  7MWU_ZPM:
+    protein:
+      path: 7MWU_ZPM_protein.pdb
+      residues:
+        A:
+        - 178
+        - 218
+        - 259
+        - 320
+        - 325
+        - 326
+        - 402
+        - 429
+        - 441
+        - 444
+        - 445
+    ligand:
+      smiles: O=C(O)C1CCC1
+      reference_sdf: 7MWU_ZPM_ligand.sdf
+  7MY1_IPE:
+    protein:
+      path: 7MY1_IPE_protein.pdb
+      residues:
+        A:
+        - 78
+        - 81
+        - 82
+        - 85
+        - 86
+        - 91
+        - 93
+        - 96
+        - 154
+        - 158
+        - 161
+        - 182
+        - 183
+    ligand:
+      smiles: C=C(C)CCO[P@@](=O)(O)OP(=O)(O)O
+      ions:
+      - '[Mg+2]'
+      - '[Mg+2]'
+      reference_sdf: 7MY1_IPE_ligand.sdf
+  7MYU_ZR7:
+    protein:
+      path: 7MYU_ZR7_protein.pdb
+      residues:
+        A:
+        - 14
+        - 15
+        - 16
+        - 17
+        - 18
+        - 19
+        - 35
+        - 37
+        - 39
+        - 40
+        - 42
+        - 74
+        - 76
+        - 81
+        - 113
+        - 115
+        - 120
+        - 123
+        - 131
+        - 133
+        - 233
+        - 234
+        - 235
+        - 236
+        - 237
+        - 340
+    ligand:
+      smiles: COc1cnc(C(=O)Nc2ccc(F)c([C@]34CN(c5ncc(F)cn5)C[C@H]3CSC(N)=N4)c2)cn1
+      reference_sdf: 7MYU_ZR7_ligand.sdf
+  7N03_ZRP:
+    protein:
+      path: 7N03_ZRP_protein.pdb
+      residues:
+        A:
+        - 5
+        - 6
+        - 7
+        - 9
+        - 18
+        - 25
+        - 30
+        - 31
+        - 32
+        - 34
+        - 35
+        - 36
+        - 70
+        - 72
+        - 79
+        - 81
+        - 114
+        - 115
+        - 117
+        - 118
+        - 121
+        - 122
+        - 137
+    ligand:
+      smiles: CCCCCCNc1ccc2ncc(C(=O)NC)c(Nc3ccccc3)c2c1
+      reference_sdf: 7N03_ZRP_ligand.sdf
+  7N4N_0BK:
+    protein:
+      path: 7N4N_0BK_protein.pdb
+      residues:
+        A:
+        - 15
+        - 16
+        - 17
+        - 34
+        - 36
+        - 38
+        - 39
+        - 75
+        - 112
+        - 119
+        - 122
+        - 190
+        - 218
+        - 220
+        - 221
+        - 222
+        - 223
+        - 224
+        - 315
+    ligand:
+      smiles: COc1cc(C(=O)Nc2ccc(F)c([C@]3(CF)CC[C@@](C)(S(C)(=O)=O)C(N)=N3)c2)ncn1
+      reference_sdf: 7N4N_0BK_ligand.sdf
+  7N4W_P4V:
+    protein:
+      path: 7N4W_P4V_protein.pdb
+      residues:
+        A:
+        - 55
+        - 56
+        - 59
+        - 60
+        - 63
+        - 78
+        - 81
+        - 85
+        - 88
+        - 99
+        - 120
+        - 123
+        - 127
+        - 131
+        - 144
+        - 145
+        - 148
+        - 149
+        - 177
+        - 181
+        - 182
+    ligand:
+      smiles: COc1cc2c(cc1OC)[C@H]1Cc3ccc(OC)c(OC)c3CN1CC2
+      reference_sdf: 7N4W_P4V_ligand.sdf
+  7N6F_0I1:
+    protein:
+      path: 7N6F_0I1_protein.pdb
+      residues:
+        A:
+        - 35
+        - 63
+        - 64
+        - 67
+        - 76
+        - 81
+        - 173
+        - 174
+        - 177
+        - 181
+        - 248
+        - 249
+        - 250
+        - 252
+        - 253
+        - 314
+        - 315
+        - 316
+        - 317
+        - 318
+        - 384
+        - 421
+        - 422
+    ligand:
+      smiles: O=C(C1CCN(c2cncnc2-c2ccc(F)cc2)CC1)N1CC(F)C1
+      reference_sdf: 7N6F_0I1_ligand.sdf
+  7N7B_T3F:
+    protein:
+      path: 7N7B_T3F_protein.pdb
+      residues:
+        A:
+        - 9
+        - 35
+        - 77
+        - 78
+        - 79
+        - 80
+        - 96
+        - 105
+        - 106
+        - 107
+        - 108
+        - 109
+        - 110
+        - 132
+        - 154
+        - 192
+        - 197
+        - 219
+        - 222
+        - 223
+    ligand:
+      smiles: Cc1cn([C@H]2C[C@H](O)[C@@H](CO[P@@](=O)(O)O[P@](=O)(O)O[C@H]3O[C@H](C)[C@H](O)[C@H](N)[C@H]3O)O2)c(=O)[nH]c1=O
+      reference_sdf: 7N7B_T3F_ligand.sdf
+  7N7H_CTP:
+    protein:
+      path: 7N7H_CTP_protein.pdb
+      residues:
+        A:
+        - 6
+        - 8
+        - 10
+        - 23
+        - 24
+        - 51
+        - 53
+        - 55
+        - 85
+        - 87
+        - 109
+        - 151
+        - 153
+        - 176
+        - 178
+        - 180
+        - 183
+        - 185
+        - 224
+        - 229
+        - 230
+        - 233
+        - 234
+        - 235
+        - 245
+        - 250
+        - 278
+        - 279
+        - 280
+        - 282
+    ligand:
+      smiles: Nc1ccn([C@@H]2O[C@H](CO[P@](=O)(O)O[P@@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)n1
+      reference_sdf: 7N7H_CTP_ligand.sdf
+  7NF0_BYN:
+    protein:
+      path: 7NF0_BYN_protein.pdb
+      residues:
+        B:
+        - 149
+        - 150
+        - 151
+        - 165
+        - 166
+        - 167
+        - 168
+        - 169
+        - 170
+        - 182
+        - 184
+        - 187
+        - 188
+        - 189
+        - 220
+        - 221
+        - 222
+        - 223
+        - 224
+        - 230
+        - 277
+        - 279
+        - 311
+        - 313
+        - 319
+        - 320
+        - 323
+        - 324
+        - 388
+        - 392
+        - 436
+    ligand:
+      smiles: Cc1cc2c3c(c1C)C(C)(C)C[C@@H](O)N3c1c(nc(O)[nH]c1=O)N2C[C@H](O)[C@H](O)[C@H](O)COP(=O)(O)O
+      ions:
+      - '[K+]'
+      - '[Mn+2]'
+      reference_sdf: 7NF0_BYN_ligand.sdf
+  7NF3_4LU:
+    protein:
+      path: 7NF3_4LU_protein.pdb
+      residues:
+        A:
+        - 149
+        - 150
+        - 151
+        - 165
+        - 166
+        - 167
+        - 168
+        - 169
+        - 170
+        - 182
+        - 184
+        - 187
+        - 188
+        - 189
+        - 220
+        - 221
+        - 222
+        - 223
+        - 224
+        - 230
+        - 277
+        - 311
+        - 313
+        - 319
+        - 320
+        - 323
+        - 324
+        - 388
+        - 392
+    ligand:
+      smiles: Cc1cc2c3c(c1C)C(C)(C)CC=[N+]3c1c([nH]c(=O)[nH]c1=O)N2C[C@H](O)[C@H](O)[C@H](O)COP(=O)(O)O
+      ions:
+      - '[K+]'
+      - '[Mn+2]'
+      reference_sdf: 7NF3_4LU_ligand.sdf
+  7NFB_GEN:
+    protein:
+      path: 7NFB_GEN_protein.pdb
+      residues:
+        B:
+        - 39
+        - 42
+        - 43
+        - 45
+        - 46
+        - 49
+        - 80
+        - 83
+        - 84
+        - 87
+        - 90
+        - 100
+        - 117
+        - 120
+        - 124
+        - 217
+        - 220
+        - 221
+        - 224
+    ligand:
+      smiles: O=c1c(-c2ccc(O)cc2)coc2cc(O)cc(O)c12
+      reference_sdf: 7NFB_GEN_ligand.sdf
+  7NGW_UAW:
+    protein:
+      path: 7NGW_UAW_protein.pdb
+      residues:
+        A:
+        - 66
+        - 82
+        - 85
+        - 86
+        - 89
+        - 93
+        - 117
+        - 121
+        - 124
+        - 127
+        - 128
+        - 131
+        - 155
+        - 158
+        - 159
+        - 162
+        - 163
+        - 186
+    ligand:
+      smiles: CC1CCN(C(=O)Nc2ccc(O)cc2)CC1
+      reference_sdf: 7NGW_UAW_ligand.sdf
+  7NLV_UJE:
+    protein:
+      path: 7NLV_UJE_protein.pdb
+      residues:
+        A:
+        - 105
+        C:
+        - 8
+        - 10
+        - 12
+        - 28
+        - 30
+        - 32
+        - 33
+        - 34
+        - 35
+        - 64
+        - 71
+        - 73
+        - 75
+        - 77
+        - 93
+        - 95
+        - 97
+        - 109
+        - 113
+    ligand:
+      smiles: O=C(CCCC[C@@H]1SC[C@@H]2NC(=O)N[C@@H]21)N[C@H]1CCNC1
+      reference_sdf: 7NLV_UJE_ligand.sdf
+  7NP6_UK8:
+    protein:
+      path: 7NP6_UK8_protein.pdb
+      residues:
+        A:
+        - 52
+        - 56
+        - 59
+        - 60
+        - 63
+        - 64
+        - 88
+        - 89
+        - 90
+        - 92
+        - 93
+        - 215
+        - 218
+        - 219
+        - 222
+        - 227
+        - 229
+        - 230
+        - 231
+        - 232
+        - 233
+        - 234
+        - 236
+        - 237
+        - 240
+        - 241
+    ligand:
+      smiles: O=C(O)c1ccc(OCc2c(-c3c(Cl)cccc3C(F)(F)F)noc2-c2cn[nH]c2)cc1
+      reference_sdf: 7NP6_UK8_ligand.sdf
+  7NPL_UKZ:
+    protein:
+      path: 7NPL_UKZ_protein.pdb
+      residues:
+        A:
+        - 169
+        - 170
+        - 171
+        - 175
+        - 198
+        - 221
+        - 227
+        - 229
+        - 265
+        - 266
+        - 267
+        - 268
+        - 269
+        - 270
+        - 315
+        - 317
+        - 319
+        - 329
+        - 333
+        - 335
+        - 337
+        - 351
+    ligand:
+      smiles: CCC[C@@H](NC(=O)c1cccc2c1CC(=O)N2)[C@@H](O)c1cccc(Cl)c1C
+      reference_sdf: 7NPL_UKZ_ligand.sdf
+  7NR8_UOE:
+    protein:
+      path: 7NR8_UOE_protein.pdb
+      residues:
+        A:
+        - 21
+        - 25
+        - 26
+        - 29
+        - 42
+        - 44
+        - 46
+        - 48
+        - 54
+        - 57
+        - 58
+        - 61
+        - 74
+        - 95
+        - 96
+        - 97
+        - 98
+        - 99
+        - 100
+        - 101
+        - 104
+        - 146
+        - 155
+        - 156
+        - 157
+        - 158
+    ligand:
+      smiles: C[C@H](C(=O)N[C@H](CO)c1cccc(N2CCN(C)CC2)n1)N1Cc2ccc(-c3nc(NC4CCOCC4)ncc3Cl)cc2C1=O
+      reference_sdf: 7NR8_UOE_ligand.sdf
+  7NSW_HC4:
+    protein:
+      path: 7NSW_HC4_protein.pdb
+      residues:
+        B:
+        - 12
+        - 13
+        - 19
+        - 69
+        - 71
+        - 74
+        - 124
+        - 148
+        - 150
+        - 168
+        - 169
+        - 170
+        - 186
+        - 187
+        - 188
+        - 190
+        - 191
+        - 218
+        - 254
+    ligand:
+      smiles: O=C(O)/C=C/c1ccc(O)cc1
+      reference_sdf: 7NSW_HC4_ligand.sdf
+  7NU0_DCL:
+    protein:
+      path: 7NU0_DCL_protein.pdb
+      residues:
+        A:
+        - 40
+        - 41
+        - 42
+        - 43
+        - 80
+        - 496
+        - 499
+        - 502
+        - 530
+        - 536
+        - 540
+    ligand:
+      smiles: CC(C)C[C@H](N)CO
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 7NU0_DCL_ligand.sdf
+  7NUT_GLP:
+    protein:
+      path: 7NUT_GLP_protein.pdb
+      residues:
+        A:
+        - 147
+        - 148
+        - 149
+        - 150
+        - 206
+        - 227
+        - 229
+        - 230
+        - 231
+        - 232
+        - 262
+        - 267
+        - 289
+        - 322
+        - 323
+        - 324
+        - 325
+        B:
+        - 234
+        - 235
+    ligand:
+      smiles: N[C@@H]1[C@@H](O)[C@H](O)[C@@H](COP(=O)(O)O)O[C@@H]1O
+      ions:
+      - '[Zn+2]'
+      reference_sdf: 7NUT_GLP_ligand.sdf
+  7NXO_UU8:
+    protein:
+      path: 7NXO_UU8_protein.pdb
+      residues:
+        A:
+        - 27
+        - 73
+        - 139
+        - 141
+        - 171
+        - 172
+        - 173
+        - 197
+        - 202
+        - 209
+        - 213
+        - 217
+        - 218
+        - 219
+        - 235
+        - 236
+        - 309
+        B:
+        - 70
+        - 153
+        - 154
+        - 155
+    ligand:
+      smiles: Cc1ccccc1Oc1cc(-n2c(=O)cc(S(=O)(=O)c3ccccc3)[nH]c2=O)c(F)cc1C#N
+      reference_sdf: 7NXO_UU8_ligand.sdf
+  7O0N_CDP:
+    protein:
+      path: 7O0N_CDP_protein.pdb
+      residues:
+        A:
+        - 39
+        - 88
+        - 89
+        - 90
+        - 92
+        - 93
+        - 94
+        B:
+        - 17
+        - 28
+        - 31
+        - 32
+        - 35
+        - 36
+        - 37
+        - 38
+        - 39
+        - 54
+        - 55
+        - 56
+        - 57
+        - 58
+        - 89
+        - 90
+        - 93
+    ligand:
+      smiles: Nc1ccn([C@@H]2O[C@H](CO[P@@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)n1
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 7O0N_CDP_ligand.sdf
+  7O1T_5X8:
+    protein:
+      path: 7O1T_5X8_protein.pdb
+      residues:
+        A:
+        - 79
+        - 80
+        - 81
+        - 117
+        - 118
+        - 119
+        - 120
+        - 146
+        - 147
+        - 148
+        - 167
+        - 168
+        - 169
+        - 171
+        - 182
+        - 190
+        - 209
+        - 239
+        - 240
+        - 241
+        - 242
+        - 243
+        - 280
+        - 313
+        - 315
+        - 316
+        - 357
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@H](CSC[C@H](N)C(=O)O)[C@@H](O)[C@H]1O
+      reference_sdf: 7O1T_5X8_ligand.sdf
+  7ODY_DGI:
+    protein:
+      path: 7ODY_DGI_protein.pdb
+      residues:
+        A:
+        - 11
+        - 14
+        - 15
+        - 19
+        - 22
+        - 27
+        - 30
+        - 33
+        - 34
+        - 37
+        - 47
+        - 50
+        - 53
+        - 54
+        - 57
+        B:
+        - 73
+        - 77
+        - 80
+        - 82
+        - 88
+        - 89
+        - 90
+        - 91
+        - 92
+    ligand:
+      smiles: Nc1nc2c(ncn2[C@H]2C[C@H](O)[C@@H](CO[P@@](=O)(O)OP(=O)(O)O)O2)c(=O)[nH]1
+      ions:
+      - '[Mn+2]'
+      - '[Mn+2]'
+      - '[Mn+2]'
+      reference_sdf: 7ODY_DGI_ligand.sdf
+  7OEO_V9Z:
+    protein:
+      path: 7OEO_V9Z_protein.pdb
+      residues:
+        A:
+        - 26
+        - 27
+        - 28
+        - 32
+        - 33
+        - 37
+        - 39
+        - 42
+        - 80
+        - 81
+        - 84
+        - 85
+        - 89
+        - 90
+        - 91
+        - 94
+    ligand:
+      smiles: CNC(=O)CN(CC(c1ccccc1)c1ccccc1)C(=O)c1cc(C)c(OC)c(C)c1
+      reference_sdf: 7OEO_V9Z_ligand.sdf
+  7OFF_VCB:
+    protein:
+      path: 7OFF_VCB_protein.pdb
+      residues:
+        A:
+        - 12
+        - 93
+        - 140
+        - 161
+        - 186
+        - 187
+        - 203
+        - 208
+        - 233
+        - 234
+        - 250
+        - 255
+        - 280
+    ligand:
+      smiles: O=C(N[C@@H](C(=O)O)c1ccccc1)c1cccc2c1-c1ccccc1C2=O
+      reference_sdf: 7OFF_VCB_ligand.sdf
+  7OFK_VCH:
+    protein:
+      path: 7OFK_VCH_protein.pdb
+      residues:
+        A:
+        - 28
+        - 29
+        - 30
+        - 35
+        - 63
+        - 66
+        - 67
+        - 101
+        - 105
+        - 107
+        - 108
+        - 110
+        - 111
+        - 119
+        - 120
+        - 121
+        - 122
+        - 123
+        - 131
+        - 134
+        - 140
+        - 143
+    ligand:
+      smiles: CC(=O)N1Cc2cc(S(C)(=O)=O)ccc2[C@@H]1C(=O)Nc1ccc(C(O)(C(F)(F)F)C(F)(F)F)cc1
+      reference_sdf: 7OFK_VCH_ligand.sdf
+  7OLI_8HG:
+    protein:
+      path: 7OLI_8HG_protein.pdb
+      residues:
+        B:
+        - 25
+        - 27
+        - 54
+        - 55
+        - 56
+        - 57
+        - 61
+        - 64
+        - 65
+        - 145
+        - 146
+        - 149
+        - 152
+        - 175
+        - 176
+        - 177
+        - 180
+        - 211
+        - 215
+    ligand:
+      smiles: Nc1nc2c([nH]c(=O)n2[C@H]2C[C@H](O)[C@@H](CO)O2)c(=O)[nH]1
+      reference_sdf: 7OLI_8HG_ligand.sdf
+  7OMX_CNA:
+    protein:
+      path: 7OMX_CNA_protein.pdb
+      residues:
+        A:
+        - 8
+        - 9
+        - 10
+        - 11
+        - 15
+        - 18
+        - 19
+        - 22
+        - 24
+        - 25
+        - 26
+        - 28
+        - 32
+        - 33
+        - 34
+        - 35
+        - 36
+        - 37
+        - 38
+        - 39
+        - 52
+        - 56
+        - 57
+        - 58
+        - 65
+        - 147
+    ligand:
+      smiles: NC(=O)c1ccc[n+]([C@@H]2C[C@H](CO[P@](=O)(O)O[P@](=O)(O)OC[C@H]3O[C@@H](n4cnc5c(N)ncnc54)[C@H](O)[C@@H]3O)[C@@H](O)[C@H]2O)c1
+      reference_sdf: 7OMX_CNA_ligand.sdf
+  7OP9_06K:
+    protein:
+      path: 7OP9_06K_protein.pdb
+      residues:
+        I:
+        - 89
+        - 90
+        - 91
+        - 155
+        - 157
+        - 158
+        - 177
+        - 178
+        - 179
+        - 202
+        - 203
+        - 205
+    ligand:
+      smiles: Clc1nc(Cl)c2[nH]cnc2n1
+      reference_sdf: 7OP9_06K_ligand.sdf
+  7OPG_06N:
+    protein:
+      path: 7OPG_06N_protein.pdb
+      residues:
+        A:
+        - 22
+        - 23
+        - 24
+        - 25
+        - 27
+        - 30
+        - 44
+        - 46
+        - 61
+        - 80
+        - 96
+        - 97
+        - 98
+        - 99
+        - 100
+        - 147
+        - 148
+        - 150
+        - 179
+        - 180
+    ligand:
+      smiles: CCCNc1nn2c(-c3ccc(O)cc3)cnc2s1
+      reference_sdf: 7OPG_06N_ligand.sdf
+  7OSO_0V1:
+    protein:
+      path: 7OSO_0V1_protein.pdb
+      residues:
+        A:
+        - 42
+        - 43
+        - 66
+        - 94
+        - 97
+        - 128
+        - 129
+        - 199
+        - 200
+        - 284
+        - 302
+        - 349
+    ligand:
+      smiles: OCC[C@H](O)CO
+      reference_sdf: 7OSO_0V1_ligand.sdf
+  7OZ9_NGK:
+    protein:
+      path: 7OZ9_NGK_protein.pdb
+      residues:
+        B:
+        - 11
+        - 12
+        - 62
+        - 63
+        - 84
+        - 128
+        - 130
+        - 156
+        - 157
+        - 176
+        - 223
+        - 282
+        - 283
+        - 286
+        - 305
+        - 398
+        - 399
+    ligand:
+      smiles: CC(=O)N[C@@H]1[C@@H](O)[C@@H](OS(=O)(=O)O)[C@@H](CO)O[C@@H]1O
+      ions:
+      - '[Ca+2]'
+      reference_sdf: 7OZ9_NGK_ligand.sdf
+  7OZC_G6S:
+    protein:
+      path: 7OZC_G6S_protein.pdb
+      residues:
+        A:
+        - 10
+        - 11
+        - 49
+        - 50
+        - 51
+        - 71
+        - 103
+        - 105
+        - 137
+        - 139
+        - 140
+        - 187
+        - 189
+        - 200
+        - 246
+        - 247
+        - 298
+        - 299
+        - 305
+        - 306
+        - 328
+        - 329
+        - 483
+        - 484
+        - 485
+    ligand:
+      smiles: O=S(=O)(O)OC[C@H]1O[C@@H](O)[C@H](O)[C@@H](O)[C@H]1O
+      ions:
+      - '[Ca+2]'
+      reference_sdf: 7OZC_G6S_ligand.sdf
+  7P1F_KFN:
+    protein:
+      path: 7P1F_KFN_protein.pdb
+      residues:
+        B:
+        - 37
+        - 38
+        - 54
+        - 56
+        - 62
+        - 102
+        - 124
+        - 147
+        - 178
+        - 224
+        - 225
+        - 241
+        - 272
+        - 299
+        - 335
+    ligand:
+      smiles: O=C(O)C1=C[C@H](O)[C@@H](O)[C@H]([C@H](O)[C@H](O)CO)O1
+      reference_sdf: 7P1F_KFN_ligand.sdf
+  7P1M_4IU:
+    protein:
+      path: 7P1M_4IU_protein.pdb
+      residues:
+        B:
+        - 40
+        - 42
+        - 54
+        - 60
+        - 62
+        - 64
+        - 72
+        - 74
+        - 81
+        - 82
+        - 84
+        - 136
+        - 137
+    ligand:
+      smiles: Cn1c(CO[C@@H]2C=CO[C@H](CO)[C@@H]2O)nc2ccc(C(=O)O)cc21
+      reference_sdf: 7P1M_4IU_ligand.sdf
+  7P2I_MFU:
+    protein:
+      path: 7P2I_MFU_protein.pdb
+      residues:
+        C:
+        - 10
+        - 17
+        - 19
+        - 27
+        - 29
+        - 35
+        - 37
+        - 38
+        - 39
+        - 57
+        - 59
+        - 74
+        - 79
+    ligand:
+      smiles: CO[C@@H]1O[C@@H](C)[C@@H](O)[C@@H](O)[C@@H]1O
+      reference_sdf: 7P2I_MFU_ligand.sdf
+  7P4C_5OV:
+    protein:
+      path: 7P4C_5OV_protein.pdb
+      residues:
+        A:
+        - 142
+        - 234
+        - 262
+        - 263
+        - 304
+        - 306
+        - 340
+        - 373
+        - 375
+        - 376
+        - 380
+        - 426
+        - 440
+        - 442
+        - 443
+        - 472
+        - 476
+        - 503
+    ligand:
+      smiles: O=S1(=O)N[C@@H]2[C@H](O)[C@@H](O)[C@H](O)[C@@H](CO)[C@@H]2O1
+      reference_sdf: 7P4C_5OV_ligand.sdf
+  7P5T_5YG:
+    protein:
+      path: 7P5T_5YG_protein.pdb
+      residues:
+        A:
+        - 63
+        - 70
+        - 72
+        - 74
+        - 157
+        - 160
+        - 161
+        - 173
+        - 174
+        - 177
+        - 220
+        - 223
+        - 224
+        - 227
+        - 228
+        - 232
+        - 275
+        - 278
+        - 338
+        - 378
+        - 379
+    ligand:
+      smiles: COc1ccc(CNc2ccc(Cc3ccncc3)cc2)cc1
+      reference_sdf: 7P5T_5YG_ligand.sdf
+  7PGX_FMN:
+    protein:
+      path: 7PGX_FMN_protein.pdb
+      residues:
+        A:
+        - 16
+        - 18
+        - 25
+        - 49
+        - 50
+        - 51
+        - 53
+        - 54
+        - 60
+        - 63
+        - 66
+        - 67
+        - 70
+        - 80
+        - 82
+        - 92
+        - 94
+        - 96
+        - 109
+        - 110
+        - 111
+        - 113
+    ligand:
+      smiles: Cc1cc2nc3c(=O)[nH]c(=O)nc-3n(C[C@H](O)[C@H](O)[C@H](O)COP(=O)(O)O)c2cc1C
+      reference_sdf: 7PGX_FMN_ligand.sdf
+  7PIH_7QW:
+    protein:
+      path: 7PIH_7QW_protein.pdb
+      residues:
+        A:
+        - 51
+        - 52
+        - 53
+        - 59
+        - 72
+        - 106
+        - 122
+        - 123
+        - 124
+        - 125
+        - 129
+        - 167
+        - 169
+        - 171
+        - 172
+        - 174
+        - 184
+        - 185
+        - 327
+        - 330
+    ligand:
+      smiles: N[C@@H]1CCN(Cc2cccc(-c3ccc4c(O)nccc4c3)c2)C1
+      reference_sdf: 7PIH_7QW_ligand.sdf
+  7PJQ_OWH:
+    protein:
+      path: 7PJQ_OWH_protein.pdb
+      residues:
+        A:
+        - 20
+        - 24
+        - 34
+        - 35
+        - 36
+        - 37
+        - 85
+        - 86
+        - 87
+        - 88
+        - 91
+        - 96
+        - 133
+    ligand:
+      smiles: CNC(=S)c1cccnc1
+      reference_sdf: 7PJQ_OWH_ligand.sdf
+  7PK0_BYC:
+    protein:
+      path: 7PK0_BYC_protein.pdb
+      residues:
+        A:
+        - 149
+        - 172
+        - 206
+        - 208
+        - 216
+        - 217
+        - 218
+        - 219
+        - 220
+        - 221
+        - 225
+        - 226
+        - 227
+        - 228
+        - 229
+        - 230
+        - 231
+        - 232
+        - 235
+        - 251
+        - 252
+        - 253
+        - 257
+        - 259
+        - 260
+        - 262
+        - 263
+        - 264
+        - 266
+    ligand:
+      smiles: CC(C)(CO[P@@](=O)(O)O[P@](=O)(O)OC[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1OP(=O)(O)O)[C@@H](O)C(=O)NCCC(=O)NCCSC(=O)c1ccccc1
+      reference_sdf: 7PK0_BYC_ligand.sdf
+  7PL1_SFG:
+    protein:
+      path: 7PL1_SFG_protein.pdb
+      residues:
+        A:
+        - 34
+        - 35
+        - 36
+        - 37
+        - 38
+        - 58
+        - 59
+        - 60
+        - 61
+        - 91
+        - 92
+        - 93
+        - 94
+        - 112
+        - 113
+        - 114
+        - 115
+        - 184
+        - 185
+        - 186
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@H](C[C@@H](N)CC[C@H](N)C(=O)O)[C@@H](O)[C@H]1O
+      reference_sdf: 7PL1_SFG_ligand.sdf
+  7POM_7VZ:
+    protein:
+      path: 7POM_7VZ_protein.pdb
+      residues:
+        C:
+        - 1
+        - 3
+        - 58
+        - 60
+        - 61
+        - 63
+        - 84
+        - 86
+        - 87
+        - 88
+        - 98
+        - 111
+        - 113
+        - 122
+        - 132
+        - 134
+        - 191
+        - 192
+        - 193
+        - 194
+        - 195
+        - 202
+        - 234
+    ligand:
+      smiles: COC(=O)c1cc(S(N)(=O)=O)c(SC2CCCCC2)cc1Cl
+      ions:
+      - '[Zn+2]'
+      reference_sdf: 7POM_7VZ_ligand.sdf
+  7PRI_7TI:
+    protein:
+      path: 7PRI_7TI_protein.pdb
+      residues:
+        A:
+        - 2
+        - 4
+        - 63
+        - 65
+        - 66
+        - 68
+        - 92
+        - 94
+        - 96
+        - 106
+        - 119
+        - 121
+        - 143
+        - 206
+        - 207
+        - 208
+        - 209
+        - 210
+        - 218
+    ligand:
+      smiles: Nc1cc(C(Cl)=C(Cl)Cl)c(S(N)(=O)=O)cc1S(N)(=O)=O
+      ions:
+      - '[Zn+2]'
+      reference_sdf: 7PRI_7TI_ligand.sdf
+  7PRM_81I:
+    protein:
+      path: 7PRM_81I_protein.pdb
+      residues:
+        A:
+        - 50
+        - 51
+        - 53
+        - 57
+        - 121
+        - 122
+        - 123
+        - 124
+        - 148
+        - 151
+        - 155
+        - 156
+        - 159
+        - 179
+        - 181
+        - 184
+        - 185
+        - 190
+        - 191
+        - 194
+        - 205
+        - 213
+        - 214
+        - 241
+        - 242
+        - 269
+        - 270
+        - 273
+    ligand:
+      smiles: O=C(c1ccco1)N1CCN([C@@H]2CC(=O)N(c3ccc(-c4ccc(F)cc4)cc3)C2)CC1
+      reference_sdf: 7PRM_81I_ligand.sdf
+  7PT3_3KK:
+    protein:
+      path: 7PT3_3KK_protein.pdb
+      residues:
+        A:
+        - 241
+        - 244
+        - 256
+        - 257
+        - 258
+        - 259
+        - 260
+        - 261
+        - 278
+        - 279
+        - 348
+        - 349
+        - 352
+        - 395
+        - 399
+        - 403
+        - 404
+        - 407
+        - 415
+        - 416
+        - 419
+        - 421
+        - 478
+        - 546
+        - 547
+        - 550
+        - 552
+        - 553
+        - 555
+        - 560
+        - 561
+        - 564
+        B:
+        - 27
+        - 28
+        - 29
+        - 73
+        - 112
+        - 113
+    ligand:
+      smiles: CC(C)(O)C(=O)SCCNC(=O)CCNC(=O)[C@H](O)C(C)(C)CO[P@@](=O)(O)O[P@](=O)(O)OC[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1OP(=O)(O)O
+      reference_sdf: 7PT3_3KK_ligand.sdf
+  7PUV_84Z:
+    protein:
+      path: 7PUV_84Z_protein.pdb
+      residues:
+        A:
+        - 2
+        - 67
+        - 86
+        - 87
+        - 89
+        - 91
+        - 102
+        - 115
+        - 117
+        - 127
+        - 131
+        - 137
+        - 139
+        - 194
+        - 195
+        - 196
+        - 197
+        - 198
+        - 199
+        - 204
+        - 206
+    ligand:
+      smiles: COC(=O)c1cc(S(N)(=O)=O)c(Cl)cc1S(=O)(=O)c1ccccc1
+      ions:
+      - '[Zn+2]'
+      reference_sdf: 7PUV_84Z_ligand.sdf
+  7Q25_8J9:
+    protein:
+      path: 7Q25_8J9_protein.pdb
+      residues:
+        B:
+        - 255
+        - 327
+        - 328
+        - 329
+        - 353
+        - 354
+        - 357
+        - 358
+        - 361
+        - 385
+        - 389
+        - 427
+        - 428
+        - 431
+        - 485
+        - 486
+        - 487
+        - 492
+        - 494
+        - 497
+        - 501
+    ligand:
+      smiles: CCCC[C@H](N[C@@H](CCc1ccccc1)C(=O)O)C(=O)N[C@@H](Cc1ccc(O)cc1)C(=O)O
+      ions:
+      - '[Zn+2]'
+      reference_sdf: 7Q25_8J9_ligand.sdf
+  7Q27_8KC:
+    protein:
+      path: 7Q27_8KC_protein.pdb
+      residues:
+        A:
+        - 123
+        - 242
+        - 243
+        - 314
+        - 315
+        - 316
+        - 340
+        - 341
+        - 344
+        - 345
+        - 348
+        - 372
+        - 376
+        - 418
+        - 472
+        - 473
+        - 474
+        - 479
+        - 481
+        - 484
+        - 488
+    ligand:
+      smiles: CCCC[C@H](N[C@@H](CCc1ccccc1)C(=O)O)C(=O)N[C@@H](Cc1c[nH]c2ccccc12)C(=O)O
+      ions:
+      - '[Zn+2]'
+      reference_sdf: 7Q27_8KC_ligand.sdf
+  7Q2B_M6H:
+    protein:
+      path: 7Q2B_M6H_protein.pdb
+      residues:
+        A:
+        - 24
+        - 25
+        - 128
+        - 131
+        - 132
+        - 160
+        - 186
+        - 187
+        - 191
+        - 194
+        - 195
+        - 196
+        - 223
+        - 256
+    ligand:
+      smiles: c1ccc(CC2NCCN2)cc1
+      reference_sdf: 7Q2B_M6H_ligand.sdf
+  7Q5I_I0F:
+    protein:
+      path: 7Q5I_I0F_protein.pdb
+      residues:
+        A:
+        - 76
+        - 121
+        - 122
+        - 123
+        - 124
+        - 127
+        - 262
+        - 264
+        - 265
+        - 267
+        - 268
+        - 274
+        - 311
+        - 313
+        - 349
+        - 350
+        - 355
+        - 427
+        - 456
+        - 545
+        - 644
+        - 645
+        - 646
+        - 647
+        - 648
+    ligand:
+      smiles: CN(C)c1ccc(/C=C(\C#N)C(=O)N[C@@H]2O[C@H](CO)[C@@H](O)[C@H](O)[C@H]2O)cc1
+      reference_sdf: 7Q5I_I0F_ligand.sdf
+  7QE4_NGA:
+    protein:
+      path: 7QE4_NGA_protein.pdb
+      residues:
+        B:
+        - 38
+        - 78
+        - 79
+        - 80
+        - 81
+        - 82
+        - 91
+        - 93
+        - 95
+        - 98
+        - 101
+    ligand:
+      smiles: CC(=O)N[C@@H]1[C@@H](O)[C@@H](O)[C@@H](CO)O[C@H]1O
+      reference_sdf: 7QE4_NGA_ligand.sdf
+  7QF4_RBF:
+    protein:
+      path: 7QF4_RBF_protein.pdb
+      residues:
+        A:
+        - 6
+        - 7
+        - 8
+        - 15
+        - 24
+        - 39
+        - 40
+        - 41
+        - 43
+        - 44
+        - 53
+        - 56
+        - 57
+        - 60
+        - 70
+        - 72
+        - 82
+        - 84
+        - 86
+        - 99
+        - 100
+        - 101
+        - 103
+    ligand:
+      smiles: Cc1cc2nc3c(=O)[nH]c(=O)nc-3n(C[C@H](O)[C@H](O)[C@H](O)CO)c2cc1C
+      reference_sdf: 7QF4_RBF_ligand.sdf
+  7QFM_AY3:
+    protein:
+      path: 7QFM_AY3_protein.pdb
+      residues:
+        A:
+        - 12
+        - 13
+        - 14
+        - 18
+        - 31
+        - 33
+        - 55
+        - 70
+        - 86
+        - 87
+        - 88
+        - 89
+        - 92
+        - 94
+        - 137
+        - 140
+        - 151
+        - 152
+        - 153
+    ligand:
+      smiles: O=C1Nc2ccccc2/C1=C\c1ccc(C(=O)O)cc1
+      reference_sdf: 7QFM_AY3_ligand.sdf
+  7QGP_DJ8:
+    protein:
+      path: 7QGP_DJ8_protein.pdb
+      residues:
+        A:
+        - 20
+        - 21
+        - 22
+        - 23
+        - 25
+        - 28
+        - 41
+        - 43
+        - 45
+        - 53
+        - 56
+        - 60
+        - 69
+        - 83
+        - 85
+        - 86
+        - 87
+        - 88
+        - 91
+        - 92
+        - 136
+        - 137
+        - 139
+        - 149
+        - 150
+        - 151
+        - 153
+        - 157
+    ligand:
+      smiles: Cc1cc(Cl)ccc1CNC(=O)Nc1ccc2cc1OCCOCCNc1ccn3ncc-2c3n1
+      reference_sdf: 7QGP_DJ8_ligand.sdf
+  7QHG_T3B:
+    protein:
+      path: 7QHG_T3B_protein.pdb
+      residues:
+        B:
+        - 10
+        - 15
+        - 31
+        - 33
+        - 34
+        - 35
+        - 36
+        - 53
+        - 56
+        - 61
+        - 62
+        - 64
+        - 76
+        - 78
+        - 79
+        - 80
+        - 81
+        - 82
+        - 83
+        - 84
+        - 85
+        - 115
+        - 120
+        - 122
+        - 131
+        - 132
+        - 140
+        - 141
+        - 142
+        - 143
+        - 144
+        - 145
+        - 147
+    ligand:
+      smiles: CC(C)C(=O)Nc1ncc(C(=O)NCCN(Cc2ccccc2)C(=O)c2ccc(S(=O)(=O)Nc3ccccc3)cc2)s1
+      reference_sdf: 7QHG_T3B_ligand.sdf
+  7QHL_D5P:
+    protein:
+      path: 7QHL_D5P_protein.pdb
+      residues:
+        A:
+        - 8
+        - 9
+        - 10
+        - 11
+        - 14
+        - 27
+        - 29
+        - 58
+        - 71
+        - 72
+        - 73
+        - 74
+        - 75
+        - 76
+        - 77
+        - 122
+        - 123
+        - 125
+        - 135
+        - 136
+    ligand:
+      smiles: NCCSc1nc(NCc2ccc(-n3cccn3)cc2)c2[nH]nc(C3CCC3)c2n1
+      reference_sdf: 7QHL_D5P_ligand.sdf
+  7QPP_VDX:
+    protein:
+      path: 7QPP_VDX_protein.pdb
+      residues:
+        A:
+        - 25
+        - 29
+        - 32
+        - 58
+        - 61
+        - 64
+        - 65
+        - 68
+        - 99
+        - 102
+        - 103
+        - 105
+        - 106
+        - 109
+        - 117
+        - 119
+        - 126
+        - 131
+        - 134
+        - 136
+        - 140
+        - 144
+        - 228
+        - 232
+        - 235
+        - 245
+        - 249
+        - 253
+    ligand:
+      smiles: C=C1/C(=C\C=C2/CCC[C@]3(C)[C@@H]([C@H](C)CCCC(C)(C)O)CC[C@@H]23)C[C@@H](O)C[C@@H]1O
+      reference_sdf: 7QPP_VDX_ligand.sdf
+  7QTA_URI:
+    protein:
+      path: 7QTA_URI_protein.pdb
+      residues:
+        B:
+        - 48
+        - 49
+        - 57
+        - 60
+        - 61
+        - 63
+        - 124
+        - 125
+        - 127
+        - 131
+        - 132
+        - 134
+        - 148
+        - 152
+    ligand:
+      smiles: O=c1ccn([C@@H]2O[C@H](CO)[C@@H](O)[C@H]2O)c(=O)[nH]1
+      ions:
+      - '[Zn+2]'
+      - '[Zn+2]'
+      reference_sdf: 7QTA_URI_ligand.sdf
+  7R3D_APR:
+    protein:
+      path: 7R3D_APR_protein.pdb
+      residues:
+        B:
+        - 39
+        - 41
+        - 42
+        - 45
+        - 47
+        - 70
+        - 71
+        - 72
+        - 97
+        - 98
+        - 99
+        - 100
+        - 102
+        - 140
+        - 141
+        - 144
+        - 153
+        - 162
+        - 181
+        - 182
+        - 184
+        - 185
+        - 186
+        - 189
+        - 193
+        - 196
+        - 267
+        - 277
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@](=O)(O)O[P@@](=O)(O)OC[C@H]2O[C@@H](O)[C@H](O)[C@@H]2O)[C@@H](O)[C@H]1O
+      ions:
+      - '[Fe+2]'
+      reference_sdf: 7R3D_APR_ligand.sdf
+  7R59_I5F:
+    protein:
+      path: 7R59_I5F_protein.pdb
+      residues:
+        A:
+        - 195
+        - 196
+        - 197
+        - 224
+        - 230
+        - 231
+        - 232
+        - 237
+        - 238
+        - 241
+        - 326
+    ligand:
+      smiles: Oc1ccc2c(c1)sc1nncn12
+      reference_sdf: 7R59_I5F_ligand.sdf
+  7R6J_2I7:
+    protein:
+      path: 7R6J_2I7_protein.pdb
+      residues:
+        B:
+        - 380
+        - 384
+        - 385
+        - 387
+        - 389
+        - 391
+        - 392
+        - 428
+        - 536
+        - 537
+        - 538
+        - 675
+        - 677
+        - 678
+        - 683
+        - 735
+        - 746
+        - 747
+        - 750
+        - 753
+    ligand:
+      smiles: Cc1cc(NCc2cccc(CN3C[C@H](O)[C@@H](O)[C@H](O)[C@H]3CO)c2)cc(-c2ncccn2)c1
+      reference_sdf: 7R6J_2I7_ligand.sdf
+  7R7R_AWJ:
+    protein:
+      path: 7R7R_AWJ_protein.pdb
+      residues:
+        A:
+        - 30
+        - 31
+        - 32
+        - 35
+        - 45
+        - 47
+        - 77
+        - 93
+        - 94
+        - 95
+        - 96
+        - 97
+        - 98
+        - 99
+        - 100
+        - 103
+        - 150
+        - 151
+        - 152
+        - 153
+        - 166
+        - 167
+    ligand:
+      smiles: Cc1nc([C@](C)(O)CO)sc1-c1cnc(N)c(O[C@H](C)c2cc(F)ccc2N2NC=CN2)c1
+      reference_sdf: 7R7R_AWJ_ligand.sdf
+  7R9N_F97:
+    protein:
+      path: 7R9N_F97_protein.pdb
+      residues:
+        B:
+        - 18
+        - 20
+        - 21
+        - 22
+        - 25
+        - 28
+        - 41
+        - 43
+        - 68
+        - 84
+        - 85
+        - 86
+        - 87
+        - 88
+        - 89
+        - 90
+        - 94
+        - 137
+        - 147
+        - 148
+    ligand:
+      smiles: CC(C)n1ncc2cnc(Nc3cc([C@@H]4CCNC4)nc(N4CCC(F)(F)C4)n3)cc21
+      reference_sdf: 7R9N_F97_ligand.sdf
+  7RC3_SAH:
+    protein:
+      path: 7RC3_SAH_protein.pdb
+      residues:
+        A:
+        - 135
+        - 136
+        - 137
+        - 140
+        - 143
+        - 160
+        - 161
+        - 162
+        - 163
+        - 164
+        - 165
+        - 167
+        - 182
+        - 183
+        - 184
+        - 185
+        - 188
+        - 211
+        - 212
+        - 213
+        - 229
+        - 230
+        - 231
+        - 243
+        - 244
+        - 255
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@H](CSCC[C@H](N)C(=O)O)[C@@H](O)[C@H]1O
+      ions:
+      - '[Na+]'
+      reference_sdf: 7RC3_SAH_ligand.sdf
+  7RH3_59O:
+    protein:
+      path: 7RH3_59O_protein.pdb
+      residues:
+        A:
+        - 32
+        - 33
+        - 34
+        - 46
+        - 48
+        - 49
+        - 50
+        - 52
+        - 53
+        - 60
+        - 62
+        - 69
+        - 70
+        - 72
+        - 125
+        - 126
+    ligand:
+      smiles: CO[C@@H]1O[C@H](CO)[C@H](O)[C@H](OC(=O)c2ccc(C)cc2)[C@@H]1OC(=O)c1ccc(Cl)cc1[N+](=O)[O-]
+      reference_sdf: 7RH3_59O_ligand.sdf
+  7RKW_5TV:
+    protein:
+      path: 7RKW_5TV_protein.pdb
+      residues:
+        A:
+        - 73
+        - 75
+        - 76
+        - 80
+        - 85
+        - 86
+        - 94
+        - 98
+        - 101
+        - 252
+        - 255
+        - 256
+        - 258
+        - 259
+        - 263
+        - 324
+        - 396
+        - 433
+    ligand:
+      smiles: O=C(O[C@H](Cn1ccnc1)c1ccc(F)cc1)c1cc(Cl)cc(Cl)c1
+      reference_sdf: 7RKW_5TV_ligand.sdf
+  7RNI_60I:
+    protein:
+      path: 7RNI_60I_protein.pdb
+      residues:
+        A:
+        - 76
+        - 113
+        B:
+        - 75
+        - 76
+        - 79
+        - 82
+        - 86
+        - 131
+        - 134
+        - 182
+        - 185
+        - 186
+        - 228
+        - 230
+        - 231
+        - 234
+        - 283
+        - 341
+    ligand:
+      smiles: Cc1nn(C)c(C)c1C(=O)N1CCN(Cc2nc3ccccc3n2CC(C)(C)C)CC1
+      reference_sdf: 7RNI_60I_ligand.sdf
+  7ROR_69X:
+    protein:
+      path: 7ROR_69X_protein.pdb
+      residues:
+        A:
+        - 43
+        - 44
+        - 45
+        - 46
+        - 47
+        - 53
+        - 55
+        - 56
+        - 59
+        - 77
+        - 79
+        - 82
+        - 155
+        - 156
+        - 171
+        - 175
+        - 178
+        - 189
+        - 190
+        - 191
+        - 192
+        - 193
+        - 218
+        - 219
+        - 220
+        - 221
+        - 230
+        - 231
+        - 232
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@](=O)(O)OC(=O)[C@@H](N)Cc2ccc(O)cc2)[C@@H](O)[C@H]1O
+      reference_sdf: 7ROR_69X_ligand.sdf
+  7ROU_66I:
+    protein:
+      path: 7ROU_66I_protein.pdb
+      residues:
+        A:
+        - 36
+        - 37
+        - 38
+        - 39
+        - 40
+        - 42
+        - 46
+        - 48
+        - 49
+        - 51
+        - 52
+        - 69
+        - 71
+        - 74
+        - 149
+        - 163
+        - 166
+        - 167
+        - 170
+        - 179
+        - 180
+        - 181
+        - 182
+        - 183
+        - 184
+        - 185
+        - 188
+        - 209
+        - 210
+        - 211
+        - 212
+    ligand:
+      smiles: Nc1ncnc2c1c(OC(F)F)nn2[C@@H]1O[C@H](COS(=O)(=O)NC(=O)[C@@H](N)Cc2ccc(O)cc2)[C@@H](O)[C@H]1O
+      reference_sdf: 7ROU_66I_ligand.sdf
+  7RSV_7IQ:
+    protein:
+      path: 7RSV_7IQ_protein.pdb
+      residues:
+        B:
+        - 275
+        - 281
+        - 297
+        - 299
+        - 307
+        - 333
+        - 345
+        - 346
+        - 347
+        - 348
+        - 350
+        - 413
+        - 421
+        - 423
+        - 424
+    ligand:
+      smiles: C[C@@H]1COCCN1c1cc2n(n1)[C@@H]1CCC[C@@H]1NC2=O
+      reference_sdf: 7RSV_7IQ_ligand.sdf
+  7RWS_4UR:
+    protein:
+      path: 7RWS_4UR_protein.pdb
+      residues:
+        A:
+        - 12
+        - 79
+        - 80
+        - 81
+        - 82
+        - 85
+        - 102
+        - 103
+        - 104
+        - 105
+        - 145
+        - 146
+        - 147
+        - 148
+        - 152
+        - 175
+        - 213
+        - 214
+        - 215
+        - 216
+        - 217
+        - 220
+        - 239
+        - 240
+        - 246
+    ligand:
+      smiles: Nc1nc2c(ncn2[C@@H]2O[C@@H]3CO[P@@](=O)(O)O[C@@H]4[C@H](O)[C@@H](CO[P@](=O)(O)O[C@H]3[C@H]2O)O[C@H]4n2cnc3c(N)ncnc32)c(=O)[nH]1
+      reference_sdf: 7RWS_4UR_ligand.sdf
+  7RZL_NPO:
+    protein:
+      path: 7RZL_NPO_protein.pdb
+      residues:
+        A:
+        - 47
+        - 48
+        - 49
+        - 50
+        - 117
+        - 118
+        - 121
+        B:
+        - 18
+        - 68
+        - 69
+        - 160
+    ligand:
+      smiles: O=[N+]([O-])c1ccc(O)cc1
+      reference_sdf: 7RZL_NPO_ligand.sdf
+  7SCW_GSP:
+    protein:
+      path: 7SCW_GSP_protein.pdb
+      residues:
+        A:
+        - 12
+        - 13
+        - 14
+        - 15
+        - 16
+        - 17
+        - 18
+        - 19
+        - 20
+        - 30
+        - 31
+        - 32
+        - 33
+        - 35
+        - 36
+        - 37
+        - 59
+        - 60
+        - 61
+        - 62
+        - 63
+        - 118
+        - 119
+        - 120
+        - 121
+        - 122
+        - 146
+        - 147
+        - 148
+        - 149
+    ligand:
+      smiles: Nc1nc2c(ncn2[C@@H]2O[C@H](CO[P@](=O)(O)O[P@](=O)(O)OP(O)(O)=S)[C@@H](O)[C@H]2O)c(=O)[nH]1
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 7SCW_GSP_ligand.sdf
+  7SDD_4IP:
+    protein:
+      path: 7SDD_4IP_protein.pdb
+      residues:
+        A:
+        - 14
+        - 131
+        - 171
+        - 172
+        - 200
+        - 201
+        - 202
+        - 203
+        - 204
+        - 205
+        - 206
+        - 207
+        - 239
+        - 246
+        - 247
+        - 248
+        - 251
+        - 255
+        - 258
+    ligand:
+      smiles: O=P(O)(O)O[C@H]1[C@H](O)[C@@H](OP(=O)(O)O)[C@H](OP(=O)(O)O)[C@@H](OP(=O)(O)O)[C@H]1O
+      reference_sdf: 7SDD_4IP_ligand.sdf
+  7SFO_98L:
+    protein:
+      path: 7SFO_98L_protein.pdb
+      residues:
+        A:
+        - 29
+        - 32
+        - 33
+        - 35
+        - 36
+        - 39
+        - 69
+        - 70
+        - 73
+        - 74
+        - 77
+        - 80
+        - 88
+        - 90
+        - 102
+        - 105
+        - 106
+        - 109
+        - 194
+        - 195
+        - 197
+        - 198
+        - 201
+    ligand:
+      smiles: Oc1cccc(CNc2nc(Cl)nc3scc(-c4ccccc4)c23)c1
+      reference_sdf: 7SFO_98L_ligand.sdf
+  7SIU_9ID:
+    protein:
+      path: 7SIU_9ID_protein.pdb
+      residues:
+        B:
+        - 13
+        - 14
+        - 18
+        - 21
+        - 34
+        - 36
+        - 56
+        - 64
+        - 65
+        - 81
+        - 82
+        - 83
+        - 84
+        - 85
+        - 86
+        - 87
+        - 91
+        - 134
+        - 144
+        - 145
+        - 146
+        - 150
+    ligand:
+      smiles: Cn1cc(Nc2ncc(C3=CCC[C@@H](NC(=O)c4ccccc4)C3)nc2C(N)=O)cn1
+      reference_sdf: 7SIU_9ID_ligand.sdf
+  7SUC_COM:
+    protein:
+      path: 7SUC_COM_protein.pdb
+      residues:
+        A:
+        - 327
+        - 330
+        - 439
+        - 440
+        B:
+        - 360
+        - 363
+        - 364
+        - 366
+        C:
+        - 116
+        - 119
+        a:
+        - 146
+    ligand:
+      smiles: O=S(=O)(O)CCS
+      reference_sdf: 7SUC_COM_ligand.sdf
+  7SZA_DUI:
+    protein:
+      path: 7SZA_DUI_protein.pdb
+      residues:
+        A:
+        - 26
+        - 27
+        - 34
+        - 36
+        - 45
+        - 86
+        - 100
+        - 101
+        - 102
+        - 103
+        - 104
+        - 105
+        - 106
+        - 156
+        - 169
+        - 170
+    ligand:
+      smiles: Nc1cccc2c1C(=O)N([C@@H]1CCC(=O)NC1=O)C2=O
+      reference_sdf: 7SZA_DUI_ligand.sdf
+  7T0D_FPP:
+    protein:
+      path: 7T0D_FPP_protein.pdb
+      residues:
+        A:
+        - 105
+        - 141
+        - 142
+        B:
+        - 89
+        - 140
+        - 196
+        - 199
+        - 200
+        - 254
+        - 256
+        - 257
+        - 260
+        - 304
+        - 305
+        - 308
+        - 309
+        - 311
+        - 314
+        - 317
+        - 376
+    ligand:
+      smiles: CC(C)=CCC/C(C)=C/CC/C(C)=C/CO[P@](=O)(O)OP(=O)(O)O
+      reference_sdf: 7T0D_FPP_ligand.sdf
+  7T1D_E7K:
+    protein:
+      path: 7T1D_E7K_protein.pdb
+      residues:
+        A:
+        - 238
+        - 239
+        B:
+        - 41
+        - 42
+        - 46
+        - 58
+        - 61
+        - 73
+        - 76
+        - 77
+        - 80
+        - 81
+        - 82
+        - 85
+        - 111
+        - 112
+        - 113
+        - 132
+        - 148
+        - 174
+        - 175
+        - 176
+        - 177
+        - 208
+    ligand:
+      smiles: Cc1cn(-c2ccc3c(c2)CN(c2ncc(Cc4ccc(-n5cccn5)cc4)s2)CC3)c(C)n1
+      reference_sdf: 7T1D_E7K_ligand.sdf
+  7T3E_SLB:
+    protein:
+      path: 7T3E_SLB_protein.pdb
+      residues:
+        A:
+        - 10
+        - 11
+        - 17
+        - 49
+        - 65
+        - 66
+        - 67
+        - 70
+        - 82
+        - 126
+        - 146
+        - 148
+        - 150
+        - 153
+        - 169
+        - 185
+        - 186
+        - 211
+        - 213
+    ligand:
+      smiles: CC(=O)N[C@H]1[C@H]([C@H](O)[C@H](O)CO)O[C@](O)(C(=O)O)C[C@@H]1O
+      reference_sdf: 7T3E_SLB_ligand.sdf
+  7TB0_UD1:
+    protein:
+      path: 7TB0_UD1_protein.pdb
+      residues:
+        A:
+        - 22
+        - 23
+        - 26
+        - 95
+        - 96
+        - 124
+        - 125
+        - 126
+        - 127
+        - 128
+        - 129
+        - 163
+        - 164
+        - 165
+        - 166
+        - 167
+        - 168
+        - 170
+        - 191
+        - 306
+        - 307
+        - 329
+        - 330
+        - 331
+        - 333
+        B:
+        - 297
+    ligand:
+      smiles: CC(=O)N[C@H]1[C@@H](O[P@@](=O)(O)O[P@@](=O)(O)OC[C@H]2O[C@@H](n3ccc(=O)[nH]c3=O)[C@H](O)[C@@H]2O)O[C@H](CO)[C@@H](O)[C@@H]1O
+      reference_sdf: 7TB0_UD1_ligand.sdf
+  7TBU_S3P:
+    protein:
+      path: 7TBU_S3P_protein.pdb
+      residues:
+        A:
+        - 25
+        - 29
+        - 99
+        - 103
+        - 178
+        - 179
+        - 180
+        - 183
+        - 207
+        - 210
+        - 358
+    ligand:
+      smiles: O=C(O)C1=C[C@@H](OP(=O)(O)O)[C@@H](O)[C@H](O)C1
+      reference_sdf: 7TBU_S3P_ligand.sdf
+  7TE8_P0T:
+    protein:
+      path: 7TE8_P0T_protein.pdb
+      residues:
+        D:
+        - 33
+        - 34
+        - 35
+        - 36
+        - 37
+        - 47
+        - 49
+        - 50
+        - 51
+        - 52
+        - 57
+        - 58
+        - 59
+        - 60
+        - 98
+        - 99
+        - 100
+        - 107
+        B:
+        - 46
+        - 48
+        - 61
+        - 101
+        - 102
+        - 103
+        - 106
+        - 107
+        - 108
+    ligand:
+      smiles: C=C(C)[C@@H]1CCC(C)=C[C@H]1c1c(O)cc(CCCCC)cc1O
+      reference_sdf: 7TE8_P0T_ligand.sdf
+  7TH4_FFO:
+    protein:
+      path: 7TH4_FFO_protein.pdb
+      residues:
+        B:
+        - 18
+        - 20
+        - 23
+        - 49
+        - 109
+        - 180
+        - 181
+        - 209
+        - 213
+        - 215
+        - 216
+        - 218
+        - 219
+        - 220
+        - 223
+        - 224
+        - 272
+        - 274
+    ligand:
+      smiles: Nc1nc2c(c(=O)[nH]1)N(C=O)[C@@H](CNc1ccc(C(=O)N[C@@H](CCC(=O)O)C(=O)O)cc1)CN2
+      reference_sdf: 7TH4_FFO_ligand.sdf
+  7THI_PGA:
+    protein:
+      path: 7THI_PGA_protein.pdb
+      residues:
+        B:
+        - 9
+        - 20
+        - 21
+        - 22
+        - 23
+        - 61
+        - 88
+        - 89
+        - 91
+        - 99
+        - 115
+        - 116
+        - 189
+        - 247
+        - 250
+    ligand:
+      smiles: O=C(O)COP(=O)(O)O
+      reference_sdf: 7THI_PGA_ligand.sdf
+  7TM6_GPJ:
+    protein:
+      path: 7TM6_GPJ_protein.pdb
+      residues:
+        A:
+        - 21
+        - 48
+        - 93
+        - 94
+        - 95
+        - 96
+        - 99
+        - 123
+        - 170
+        - 312
+        - 339
+        - 340
+        - 343
+        - 384
+        - 385
+        - 410
+        - 411
+    ligand:
+      smiles: O=C(O)C[NH2+]CP(=O)(O)O
+      reference_sdf: 7TM6_GPJ_ligand.sdf
+  7TOM_5AD:
+    protein:
+      path: 7TOM_5AD_protein.pdb
+      residues:
+        A:
+        - 107
+        - 108
+        - 109
+        - 174
+        - 198
+        - 199
+        - 200
+        - 201
+        - 202
+        - 213
+        - 239
+        - 241
+        - 271
+        - 272
+        - 273
+        - 274
+        - 276
+        - 279
+        - 438
+        - 499
+    ligand:
+      smiles: C[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O
+      reference_sdf: 7TOM_5AD_ligand.sdf
+  7TS6_KMI:
+    protein:
+      path: 7TS6_KMI_protein.pdb
+      residues:
+        B:
+        - 173
+        - 260
+        - 262
+        - 279
+        - 280
+        - 281
+        - 282
+        - 283
+        - 284
+        - 287
+        - 373
+    ligand:
+      smiles: CNCc1cccc(-c2cc(C)cc(N)n2)c1
+      reference_sdf: 7TS6_KMI_ligand.sdf
+  7TSF_H4B:
+    protein:
+      path: 7TSF_H4B_protein.pdb
+      residues:
+        A:
+        - 36
+        - 37
+        - 38
+        - 290
+        - 371
+        - 372
+        B:
+        - 8
+        - 369
+        - 384
+        - 385
+        - 386
+        - 387
+    ligand:
+      smiles: C[C@H](O)[C@H](O)[C@H]1CNc2nc(N)[nH]c(=O)c2N1
+      reference_sdf: 7TSF_H4B_ligand.sdf
+  7TUO_KL9:
+    protein:
+      path: 7TUO_KL9_protein.pdb
+      residues:
+        A:
+        - 28
+        - 31
+        - 32
+        - 91
+        - 92
+        - 95
+        - 96
+        - 99
+        - 120
+        - 121
+        - 135
+        - 136
+        - 169
+        - 171
+        - 175
+        - 186
+        - 218
+        - 220
+        - 224
+        - 229
+        - 271
+        - 272
+        - 274
+    ligand:
+      smiles: Cc1cnc2c(N)c(C(=O)NCCc3ccc([C@@H]4C[C@H]5CC[C@@H](C4)N5)cc3)sc2n1
+      reference_sdf: 7TUO_KL9_ligand.sdf
+  7TXK_LW8:
+    protein:
+      path: 7TXK_LW8_protein.pdb
+      residues:
+        A:
+        - 11
+        - 12
+        - 42
+        - 43
+        - 44
+        - 61
+        - 62
+        - 65
+        - 108
+        - 109
+        - 110
+        - 144
+        - 148
+        - 188
+        - 212
+    ligand:
+      smiles: C[N+](C)(C)[C@@H](Cc1c[nH]c(=S)[nH]1)C(=O)O
+      reference_sdf: 7TXK_LW8_ligand.sdf
+  7TYP_KUR:
+    protein:
+      path: 7TYP_KUR_protein.pdb
+      residues:
+        B:
+        - 12
+        - 14
+        - 22
+        - 23
+        - 66
+        - 68
+        - 70
+        - 77
+        - 79
+        - 91
+        - 92
+        - 93
+        - 105
+        - 106
+        - 107
+        - 122
+        - 125
+        - 126
+        - 127
+        - 128
+        - 131
+        - 134
+        - 135
+        - 138
+        - 151
+        - 154
+        - 156
+        - 158
+        - 174
+        - 176
+    ligand:
+      smiles: Cc1nccnc1-c1nn2c(=O)cc(-c3ccc(C4CCCCC4)cc3)[nH]c2c1C(=O)N1CC(CF)C1
+      reference_sdf: 7TYP_KUR_ligand.sdf
+  7U0U_FK5:
+    protein:
+      path: 7U0U_FK5_protein.pdb
+      residues:
+        A:
+        - 3
+        - 5
+        - 6
+        - 14
+        - 15
+        - 17
+        - 18
+        - 21
+        - 140
+        - 143
+        - 144
+        - 147
+        B:
+        - 27
+        - 37
+        - 38
+        - 43
+        - 47
+        - 55
+        - 56
+        - 57
+        - 60
+        - 82
+        - 83
+        - 86
+        - 88
+        - 91
+        - 92
+        - 100
+    ligand:
+      smiles: C=CC[C@@H]1/C=C(\C)C[C@H](C)C[C@H](OC)[C@H]2O[C@@](O)(C(=O)C(=O)N3CCCC[C@H]3C(=O)O[C@H](/C(C)=C/[C@@H]3CC[C@@H](O)[C@H](OC)C3)[C@H](C)[C@@H](O)CC1=O)[C@H](C)C[C@@H]2OC
+      reference_sdf: 7U0U_FK5_ligand.sdf
+  7U3J_L6U:
+    protein:
+      path: 7U3J_L6U_protein.pdb
+      residues:
+        A:
+        - 9
+        - 10
+        - 11
+        - 16
+        - 36
+        - 37
+        - 38
+        - 41
+        - 48
+        - 49
+        - 50
+        - 114
+        - 117
+        - 124
+        - 125
+        - 126
+        - 127
+        - 128
+        - 129
+        - 130
+        - 131
+        - 135
+        - 150
+        - 152
+        - 154
+        - 155
+        - 157
+        - 159
+    ligand:
+      smiles: CNC(=O)[C@H](CCc1ccccc1)NC(=O)[C@H](NC(=O)CNCc1ccc(OC)cc1OC)c1cccs1
+      reference_sdf: 7U3J_L6U_ligand.sdf
+  7UAS_MBU:
+    protein:
+      path: 7UAS_MBU_protein.pdb
+      residues:
+        B:
+        - 17
+        - 18
+        - 19
+        - 34
+        - 35
+        - 59
+        - 60
+        - 61
+        - 62
+        - 77
+        - 103
+        - 104
+        - 119
+        - 143
+        - 144
+        - 145
+        - 161
+        - 188
+        - 189
+        - 229
+        - 230
+        - 231
+        - 232
+        - 233
+        - 275
+        - 291
+    ligand:
+      smiles: CCn1cc(-c2cc(Cn3ccnc3C)cc3c2CCN([C@H](c2cc(C)ccn2)C2CC2)C3=O)c(C(F)(F)F)n1
+      reference_sdf: 7UAS_MBU_ligand.sdf
+  7UAW_MF6:
+    protein:
+      path: 7UAW_MF6_protein.pdb
+      residues:
+        A:
+        - 14
+        - 79
+        - 80
+        - 83
+        - 88
+        - 93
+        B:
+        - 25
+        - 26
+        - 30
+        - 53
+        - 54
+        - 55
+        - 56
+        - 57
+        - 58
+        - 68
+        - 69
+        - 110
+        - 114
+        - 119
+        - 120
+        - 121
+        - 122
+        - 123
+        - 124
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@@H]2CO[P@](=O)(O)O[P@](=O)(O)OC[C@H]3O[C@@H](O[C@@H]1[C@@H]2O)[C@H](O)[C@@H]3O
+      reference_sdf: 7UAW_MF6_ligand.sdf
+  7UJ4_OQ4:
+    protein:
+      path: 7UJ4_OQ4_protein.pdb
+      residues:
+        A:
+        - 133
+        - 155
+        - 156
+        - 157
+        - 158
+        - 159
+        - 160
+        - 210
+        - 213
+        - 214
+        - 248
+        - 250
+        - 251
+        - 254
+        - 257
+        - 291
+        - 294
+        - 295
+        - 297
+        - 298
+        - 302
+        - 313
+        - 335
+        - 338
+        - 339
+        - 343
+    ligand:
+      smiles: CCN(C(=O)c1cc(F)ccc1Oc1cncnc1N1CC2(CCN(C[C@H]3CC[C@H](NS(=O)(=O)CC)CC3)CC2)C1)C(C)C
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 7UJ4_OQ4_ligand.sdf
+  7UJ5_DGL:
+    protein:
+      path: 7UJ5_DGL_protein.pdb
+      residues:
+        B:
+        - 9
+        - 10
+        - 39
+        - 40
+        - 41
+        - 42
+        - 43
+        - 71
+        - 72
+        - 73
+        - 74
+        - 118
+        - 121
+        - 148
+        - 182
+        - 183
+        - 184
+        - 185
+    ligand:
+      smiles: N[C@H](CCC(=O)O)C(=O)O
+      reference_sdf: 7UJ5_DGL_ligand.sdf
+  7UJF_R3V:
+    protein:
+      path: 7UJF_R3V_protein.pdb
+      residues:
+        C:
+        - 34
+        - 37
+        - 38
+        - 40
+        - 41
+        - 42
+        - 44
+        - 45
+        - 74
+        - 75
+        - 78
+        - 79
+        - 82
+        - 85
+        - 95
+        - 112
+        - 115
+        - 116
+        - 119
+        - 209
+        - 212
+        - 213
+        - 220
+        - 221
+        - 222
+        - 223
+    ligand:
+      smiles: C[C@H]1CCN(CCOc2ccc([C@@H]3c4ccc(O)cc4CC[C@@H]3c3ccccc3)cc2)C1
+      reference_sdf: 7UJF_R3V_ligand.sdf
+  7ULC_56B:
+    protein:
+      path: 7ULC_56B_protein.pdb
+      residues:
+        A:
+        - 41
+        - 43
+        - 48
+        - 67
+        - 68
+        - 69
+        - 70
+        - 86
+        - 87
+        - 88
+        - 89
+        - 194
+        - 198
+        - 202
+        - 224
+        - 226
+        - 227
+        - 228
+        - 229
+        - 293
+        - 294
+        - 297
+        - 300
+        - 301
+    ligand:
+      smiles: Nc1nc2c(c(CN[C@H]3C=C[C@H](O)[C@@H]3O)cn2[C@@H]2O[C@H](COP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)[nH]1
+      reference_sdf: 7ULC_56B_ligand.sdf
+  7UMW_NAD:
+    protein:
+      path: 7UMW_NAD_protein.pdb
+      residues:
+        B:
+        - 13
+        - 14
+        - 15
+        - 19
+        - 20
+        - 21
+        - 40
+        - 63
+        - 64
+        - 65
+        - 66
+        - 91
+        - 92
+        - 93
+        - 94
+        - 119
+        - 144
+        - 145
+        - 146
+        - 156
+        - 159
+        - 163
+        - 189
+        - 190
+        - 191
+        - 192
+        - 194
+        - 195
+        - 196
+        - 203
+    ligand:
+      smiles: NC(=O)c1ccc[n+]([C@@H]2O[C@H](CO[P@@](=O)([O-])O[P@](=O)(O)OC[C@H]3O[C@@H](n4cnc5c(N)ncnc54)[C@H](O)[C@@H]3O)[C@@H](O)[C@H]2O)c1
+      reference_sdf: 7UMW_NAD_ligand.sdf
+  7UQ3_O2U:
+    protein:
+      path: 7UQ3_O2U_protein.pdb
+      residues:
+        A:
+        - 84
+        - 122
+        - 130
+        - 133
+        - 135
+        - 139
+        - 141
+        - 148
+        - 212
+        - 214
+        - 222
+        - 224
+        - 226
+    ligand:
+      smiles: O=C(O)C[C@@H]1CC(=O)N(O)C1=O
+      ions:
+      - '[Mn+2]'
+      reference_sdf: 7UQ3_O2U_ligand.sdf
+  7USH_82V:
+    protein:
+      path: 7USH_82V_protein.pdb
+      residues:
+        A:
+        - 26
+        - 27
+        - 28
+        - 32
+        - 37
+        - 39
+        - 42
+        - 80
+        - 81
+        - 84
+        - 85
+        - 89
+        - 91
+    ligand:
+      smiles: O=c1cc(N2CCOCC2)oc2c(-c3ccc4c(c3)OCCO4)csc12
+      reference_sdf: 7USH_82V_ligand.sdf
+  7UTW_NAI:
+    protein:
+      path: 7UTW_NAI_protein.pdb
+      residues:
+        A:
+        - 309
+        B:
+        - 46
+        - 47
+        - 48
+        - 51
+        - 93
+        - 174
+        - 178
+        - 199
+        - 200
+        - 201
+        - 202
+        - 203
+        - 204
+        - 222
+        - 223
+        - 224
+        - 225
+        - 228
+        - 243
+        - 268
+        - 269
+        - 270
+        - 271
+        - 274
+        - 292
+        - 293
+        - 294
+        - 317
+        - 318
+        - 319
+        - 320
+        - 362
+        - 368
+        - 369
+    ligand:
+      smiles: NC(=O)C1=CN([C@@H]2O[C@H](CO[P@](=O)(O)O[P@@](=O)(O)OC[C@H]3O[C@@H](n4cnc5c(N)ncnc54)[C@H](O)[C@@H]3O)[C@@H](O)[C@H]2O)C=CC1
+      ions:
+      - '[Cd+2]'
+      reference_sdf: 7UTW_NAI_ligand.sdf
+  7UXS_OJC:
+    protein:
+      path: 7UXS_OJC_protein.pdb
+      residues:
+        B:
+        - 42
+        A:
+        - 6
+        - 7
+        - 8
+        - 9
+        - 10
+        - 43
+        - 44
+        - 45
+        - 46
+        - 77
+        - 79
+        - 87
+        - 91
+        - 107
+        - 108
+        - 117
+        - 118
+        - 119
+        - 120
+        - 123
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@@H]2CO[P@](=O)(O)O[P@](=O)(O)OC[C@H]3O[C@@H](O[C@H]2[C@H]1O)[C@H](O)[C@@H]3O
+      reference_sdf: 7UXS_OJC_ligand.sdf
+  7UY4_SMI:
+    protein:
+      path: 7UY4_SMI_protein.pdb
+      residues:
+        A:
+        - 43
+        - 45
+        - 73
+        - 81
+        - 83
+        - 104
+        - 107
+        - 108
+        - 126
+        - 130
+        - 178
+        - 181
+        - 201
+    ligand:
+      smiles: CN[C@@H]1[C@H](O)[C@H](NC)[C@H]2O[C@]3(O)[C@H](O[C@@H]2[C@H]1O)O[C@H](C)CC3(O)O
+      ions:
+      - '[Mg+2]'
+      - '[Mg+2]'
+      reference_sdf: 7UY4_SMI_ligand.sdf
+  7UYB_OK0:
+    protein:
+      path: 7UYB_OK0_protein.pdb
+      residues:
+        A:
+        - 32
+        - 37
+        - 57
+        - 84
+        - 86
+        - 87
+        - 88
+        - 149
+        - 168
+        - 171
+        - 172
+        - 175
+        - 176
+        - 177
+        - 178
+        - 179
+        - 180
+        - 210
+    ligand:
+      smiles: NS(=O)(=O)c1c(C(F)(F)F)ccc(-c2ccc(C3CCNCC3)cc2)c1-c1nnn[nH]1
+      ions:
+      - '[Zn+2]'
+      - '[Zn+2]'
+      reference_sdf: 7UYB_OK0_ligand.sdf
+  7V14_ORU:
+    protein:
+      path: 7V14_ORU_protein.pdb
+      residues:
+        A:
+        - 26
+        - 27
+        - 28
+        - 29
+        - 44
+        - 45
+        - 134
+        - 137
+        - 141
+        - 182
+        - 183
+        - 184
+        - 185
+        - 186
+        - 187
+        - 188
+        - 206
+        - 207
+        - 208
+        - 209
+        - 210
+        - 211
+        - 212
+        - 219
+        - 220
+        - 221
+    ligand:
+      smiles: '[O-][n+]1cc(-c2c(-n3cnnn3)ccc(Cl)c2F)ccc1[C@@H](CC1CC1)n1cc(-c2cncs2)cn1'
+      reference_sdf: 7V14_ORU_ligand.sdf
+  7V3N_AKG:
+    protein:
+      path: 7V3N_AKG_protein.pdb
+      residues:
+        A:
+        - 110
+        - 174
+        - 176
+        - 185
+        - 188
+        - 190
+        - 197
+        - 199
+        - 204
+        - 246
+        - 248
+        - 255
+        - 257
+        - 261
+    ligand:
+      smiles: O=C(O)CCC(=O)C(=O)O
+      ions:
+      - '[Fe+2]'
+      reference_sdf: 7V3N_AKG_ligand.sdf
+  7V3S_5I9:
+    protein:
+      path: 7V3S_5I9_protein.pdb
+      residues:
+        A:
+        - 32
+        - 40
+        - 56
+        - 58
+        - 75
+        - 76
+        - 79
+        - 82
+        - 87
+        - 88
+        - 103
+        - 105
+        - 106
+        - 107
+        - 108
+        - 109
+        - 110
+        - 111
+        - 112
+        - 143
+        - 148
+        - 150
+        - 159
+        - 168
+        - 169
+        - 170
+        - 171
+        - 172
+    ligand:
+      smiles: O=C(Nc1ccc(F)cc1)C1(C(=O)Nc2ccc(Oc3ccnc4c3Oc3ccccc3N4)c(F)c2)CC1
+      reference_sdf: 7V3S_5I9_ligand.sdf
+  7V43_C4O:
+    protein:
+      path: 7V43_C4O_protein.pdb
+      residues:
+        A:
+        - 81
+        - 102
+        - 104
+        - 106
+        - 190
+        - 191
+        - 266
+        - 267
+        - 270
+        - 271
+        - 318
+        - 321
+        - 418
+        - 419
+    ligand:
+      smiles: Cc1ccc(Cl)cc1
+      reference_sdf: 7V43_C4O_ligand.sdf
+  7VB8_STL:
+    protein:
+      path: 7VB8_STL_protein.pdb
+      residues:
+        B:
+        - 126
+        - 129
+        - 130
+        - 161
+        - 175
+        - 179
+        - 265
+        - 268
+        - 269
+        - 297
+        - 314
+        - 315
+        - 318
+        - 319
+        - 322
+        - 323
+        A:
+        - 14
+    ligand:
+      smiles: Oc1ccc(/C=C/c2cc(O)cc(O)c2)cc1
+      reference_sdf: 7VB8_STL_ligand.sdf
+  7VBU_6I4:
+    protein:
+      path: 7VBU_6I4_protein.pdb
+      residues:
+        A:
+        - 232
+        - 235
+        - 236
+        - 239
+        - 268
+        - 270
+        - 272
+        - 274
+        - 275
+        - 283
+        - 296
+        - 312
+        - 320
+        - 321
+        - 322
+    ligand:
+      smiles: Cc1ccc2c(n1)[nH]c1c(C3CC3)cccc12
+      reference_sdf: 7VBU_6I4_ligand.sdf
+  7VC5_9SF:
+    protein:
+      path: 7VC5_9SF_protein.pdb
+      residues:
+        A:
+        - 77
+        - 80
+        - 81
+        - 100
+        - 101
+        - 103
+        - 132
+        - 149
+        - 151
+        - 153
+        - 196
+        - 220
+        - 222
+        - 250
+        - 251
+        - 252
+    ligand:
+      smiles: O=C(C[C@H]1NCCC[C@@H]1O)Cn1cnc2ccccc2c1=O
+      reference_sdf: 7VC5_9SF_ligand.sdf
+  7VKZ_NOJ:
+    protein:
+      path: 7VKZ_NOJ_protein.pdb
+      residues:
+        A:
+        - 47
+        - 94
+        - 95
+        - 96
+        - 97
+        - 170
+        - 171
+        - 270
+        - 304
+        - 306
+        - 344
+        - 373
+        - 391
+        - 392
+    ligand:
+      smiles: OC[C@H]1NC[C@H](O)[C@@H](O)[C@@H]1O
+      reference_sdf: 7VKZ_NOJ_ligand.sdf
+  7VQ9_ISY:
+    protein:
+      path: 7VQ9_ISY_protein.pdb
+      residues:
+        B:
+        - 13
+        - 14
+        - 15
+        - 57
+        - 58
+        - 59
+        - 60
+        - 63
+        - 66
+        - 158
+        - 162
+        - 164
+        - 166
+    ligand:
+      smiles: C=C(C)CCS[P@@](=O)(O)OP(=O)(O)O
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 7VQ9_ISY_ligand.sdf
+  7VWF_K55:
+    protein:
+      path: 7VWF_K55_protein.pdb
+      residues:
+        A:
+        - 36
+        - 42
+        - 51
+        - 62
+        - 63
+        - 65
+        - 66
+        - 67
+        - 69
+        - 70
+        - 104
+        - 108
+        - 111
+        - 115
+        - 120
+        - 122
+        - 129
+        - 133
+        - 134
+        - 144
+        - 145
+        - 148
+        - 149
+        - 230
+        - 234
+        - 250
+        - 254
+    ligand:
+      smiles: CCCCOc1ccc(C[C@H](CC)C(=O)O)cc1CNC(=O)c1ccc(C(F)(F)F)cc1F
+      reference_sdf: 7VWF_K55_ligand.sdf
+  7VYJ_CA0:
+    protein:
+      path: 7VYJ_CA0_protein.pdb
+      residues:
+        A:
+        - 27
+        - 28
+        - 83
+        - 133
+        - 137
+        - 156
+        - 157
+        - 158
+        - 159
+        - 186
+        - 187
+        - 188
+        - 190
+        - 191
+        - 201
+        - 204
+        - 205
+        - 208
+        - 304
+        - 305
+        - 306
+        - 308
+        - 309
+        - 331
+        - 332
+        - 333
+    ligand:
+      smiles: NC(=O)O[P@](=O)(O)OC[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O
+      ions:
+      - '[Fe+2]'
+      reference_sdf: 7VYJ_CA0_ligand.sdf
+  7W05_GMP:
+    protein:
+      path: 7W05_GMP_protein.pdb
+      residues:
+        A:
+        - 32
+        - 34
+        - 35
+        - 36
+        - 37
+        - 38
+        - 39
+        - 40
+        - 53
+        - 86
+        - 93
+        - 94
+        - 95
+    ligand:
+      smiles: Nc1nc2c(ncn2[C@@H]2O[C@H](CO)[C@@H](O)[C@H]2O)c(=O)[nH]1
+      reference_sdf: 7W05_GMP_ligand.sdf
+  7W06_ITN:
+    protein:
+      path: 7W06_ITN_protein.pdb
+      residues:
+        A:
+        - 13
+        - 14
+        - 15
+        - 16
+        - 43
+        - 44
+        - 45
+        - 63
+        - 107
+        - 111
+        - 112
+        - 115
+        - 138
+        - 139
+    ligand:
+      smiles: C=C(CC(=O)O)C(=O)O
+      reference_sdf: 7W06_ITN_ligand.sdf
+  7WCF_ACP:
+    protein:
+      path: 7WCF_ACP_protein.pdb
+      residues:
+        A:
+        - 62
+        - 63
+        - 64
+        - 65
+        - 66
+        - 68
+        - 90
+        - 92
+        - 105
+        - 120
+        - 136
+        - 137
+        - 138
+        - 139
+        - 140
+        - 150
+        - 164
+        - 204
+        - 206
+        - 208
+        - 209
+        - 225
+        - 226
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@@](=O)(O)O[P@@](=O)(O)CP(=O)(O)O)[C@@H](O)[C@H]1O
+      ions:
+      - '[Mg+2]'
+      - '[Mg+2]'
+      reference_sdf: 7WCF_ACP_ligand.sdf
+  7WDT_NGS:
+    protein:
+      path: 7WDT_NGS_protein.pdb
+      residues:
+        A:
+        - 313
+        - 342
+        - 422
+        - 507
+        - 508
+        - 543
+        - 562
+        - 592
+        - 594
+        - 595
+        - 604
+        - 606
+        - 640
+        - 642
+    ligand:
+      smiles: CC(=O)N[C@@H]1[C@@H](O)[C@H](O)[C@@H](COS(=O)(=O)O)O[C@H]1O
+      reference_sdf: 7WDT_NGS_ligand.sdf
+  7WJB_BGC:
+    protein:
+      path: 7WJB_BGC_protein.pdb
+      residues:
+        A:
+        - 111
+        - 193
+        - 221
+        - 222
+        - 238
+        - 268
+        - 270
+        - 329
+        - 331
+        - 333
+        - 368
+        - 381
+        - 383
+        - 384
+        - 413
+        - 417
+        - 443
+        - 444
+    ligand:
+      smiles: OC[C@H]1O[C@@H](O)[C@H](O)[C@@H](O)[C@@H]1O
+      reference_sdf: 7WJB_BGC_ligand.sdf
+  7WKL_CAQ:
+    protein:
+      path: 7WKL_CAQ_protein.pdb
+      residues:
+        A:
+        - 238
+        B:
+        - 9
+        - 24
+        - 28
+        - 63
+        - 64
+        - 168
+        - 190
+        - 194
+        - 294
+        - 297
+    ligand:
+      smiles: Oc1ccccc1O
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 7WKL_CAQ_ligand.sdf
+  7WL4_JFU:
+    protein:
+      path: 7WL4_JFU_protein.pdb
+      residues:
+        A:
+        - 43
+        - 44
+        - 45
+        - 49
+        - 54
+        - 56
+        - 59
+        - 98
+        - 101
+        - 102
+        - 107
+        - 108
+        - 111
+        B:
+        - 41
+        - 43
+        - 107
+        - 111
+    ligand:
+      smiles: CCN1C(=O)c2cc(N3CCN(C)CC3)nc3c(NS(=O)(=O)c4ccc(F)cc4F)ccc1c23
+      reference_sdf: 7WL4_JFU_ligand.sdf
+  7WPW_F15:
+    protein:
+      path: 7WPW_F15_protein.pdb
+      residues:
+        A:
+        - 11
+        - 17
+        - 20
+        - 21
+        - 24
+        - 26
+        - 30
+        - 34
+        - 37
+        - 39
+        - 41
+        - 54
+        - 56
+        - 58
+        - 59
+        - 76
+        - 77
+        - 79
+        - 105
+        - 107
+        - 116
+        - 118
+        - 127
+        - 129
+    ligand:
+      smiles: CCCCCCCCCCCCCCC(=O)O
+      reference_sdf: 7WPW_F15_ligand.sdf
+  7WQQ_5Z6:
+    protein:
+      path: 7WQQ_5Z6_protein.pdb
+      residues:
+        A:
+        - 19
+        - 39
+        - 42
+        - 43
+        - 45
+        - 46
+        - 49
+        - 50
+        - 80
+        - 83
+        - 84
+        - 86
+        - 87
+        - 90
+        - 100
+        - 101
+        - 102
+        - 115
+        - 116
+        - 119
+        - 205
+        - 208
+        - 209
+        - 212
+        - 220
+        - 224
+        - 228
+    ligand:
+      smiles: CC(C)(C)c1cc(C(=O)/C=C/c2ccc(C(=O)O)cc2)cc(C(C)(C)C)c1
+      reference_sdf: 7WQQ_5Z6_ligand.sdf
+  7WUX_6OI:
+    protein:
+      path: 7WUX_6OI_protein.pdb
+      residues:
+        A:
+        - 40
+        - 100
+        - 126
+        - 145
+        D:
+        - 48
+        - 99
+        - 105
+        - 106
+        - 107
+        - 111
+        - 113
+        - 134
+        - 163
+        - 240
+        - 244
+    ligand:
+      smiles: N[C@@H](CC[C@H](O)[C@@H](N)COS(=O)(=O)O)C(=O)O
+      reference_sdf: 7WUX_6OI_ligand.sdf
+  7WUY_76N:
+    protein:
+      path: 7WUY_76N_protein.pdb
+      residues:
+        A:
+        - 134
+        - 137
+        - 138
+        - 142
+        - 180
+        - 181
+        - 184
+        - 194
+        - 198
+        - 205
+        - 301
+        - 304
+        - 305
+        - 345
+        - 346
+        - 349
+        - 350
+        - 353
+        B:
+        - 52
+    ligand:
+      smiles: C[C@@H]1C=C[C@@H]2CCCC[C@@H]2[C@H]1C(=O)c1c(O)c([C@]2(O)CC[C@H](O)[C@@H]3O[C@@H]32)c[nH]c1=O
+      reference_sdf: 7WUY_76N_ligand.sdf
+  7WY1_D0L:
+    protein:
+      path: 7WY1_D0L_protein.pdb
+      residues:
+        B:
+        - 16
+        - 19
+        - 24
+        - 25
+        - 28
+        - 41
+        - 43
+        - 46
+        - 48
+        - 50
+        - 71
+        - 72
+        - 73
+        - 74
+        - 86
+        - 184
+        - 187
+        - 327
+        - 328
+        - 329
+        - 353
+        - 434
+        - 436
+        - 437
+    ligand:
+      smiles: CCCCCCCN1CCC[C@H]1C(=O)N[C@@H](Cc1ccccc1)C(=O)O
+      reference_sdf: 7WY1_D0L_ligand.sdf
+  7X5N_5M5:
+    protein:
+      path: 7X5N_5M5_protein.pdb
+      residues:
+        A:
+        - 51
+        - 58
+        - 59
+        - 250
+        B:
+        - 116
+        - 119
+        - 120
+        - 121
+        - 122
+        - 126
+        - 128
+        - 171
+        - 172
+        - 340
+        - 341
+        - 342
+        - 343
+        - 351
+        - 352
+        - 354
+        - 358
+    ligand:
+      smiles: Cc1n[nH]c2c1[C@](c1cc(CO)cc(-c3ccccc3)c1)(C(C)C)C(C#N)=C(N)O2
+      reference_sdf: 7X5N_5M5_ligand.sdf
+  7X9K_8OG:
+    protein:
+      path: 7X9K_8OG_protein.pdb
+      residues:
+        A:
+        - 6
+        - 8
+        - 23
+        - 28
+        - 29
+        - 34
+        - 35
+        - 36
+        - 37
+        - 38
+        - 39
+        - 57
+        - 75
+        - 78
+        - 80
+        - 82
+        - 84
+        - 116
+        - 118
+        - 119
+    ligand:
+      smiles: Nc1nc2c([nH]c(=O)n2[C@H]2C[C@H](O)[C@@H](COP(=O)(O)O)O2)c(=O)[nH]1
+      ions:
+      - '[Mn+2]'
+      - '[Na+]'
+      reference_sdf: 7X9K_8OG_ligand.sdf
+  7XBV_APC:
+    protein:
+      path: 7XBV_APC_protein.pdb
+      residues:
+        A:
+        - 158
+        - 159
+        - 160
+        - 200
+        - 201
+        - 273
+        - 274
+        - 275
+        - 276
+        - 297
+        - 298
+        - 299
+        - 300
+        - 301
+        - 302
+        - 303
+        - 324
+        - 388
+        - 390
+        - 405
+        - 408
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@](=O)(O)C[P@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O
+      reference_sdf: 7XBV_APC_ligand.sdf
+  7XFA_D9J:
+    protein:
+      path: 7XFA_D9J_protein.pdb
+      residues:
+        A:
+        - 32
+        - 33
+        - 34
+        - 46
+        - 48
+        - 50
+        - 60
+        - 62
+        - 69
+        - 70
+        - 72
+        - 125
+        - 126
+    ligand:
+      smiles: Cc1nc([C@@H]2O[C@H](CO)[C@H](O)[C@H](n3cc(-c4cc(F)c(Cl)c(F)c4)nn3)[C@H]2O)n(-c2cc(Cl)ccc2C(F)(F)F)n1
+      reference_sdf: 7XFA_D9J_ligand.sdf
+  7XG5_PLP:
+    protein:
+      path: 7XG5_PLP_protein.pdb
+      residues:
+        B:
+        - 59
+        - 75
+        - 78
+        - 168
+        - 179
+        - 183
+        - 186
+        - 212
+        - 213
+        - 215
+        - 216
+        - 217
+        - 234
+        - 235
+        - 236
+        - 237
+        - 238
+        - 239
+        - 272
+        - 273
+        - 274
+    ligand:
+      smiles: Cc1ncc(COP(=O)(O)O)c(C=O)c1O
+      reference_sdf: 7XG5_PLP_ligand.sdf
+  7XI7_4RI:
+    protein:
+      path: 7XI7_4RI_protein.pdb
+      residues:
+        A:
+        - 7
+        - 8
+        - 9
+        - 22
+        - 30
+        - 31
+        - 33
+        - 34
+        - 35
+        - 56
+        - 59
+        - 60
+        - 61
+        - 64
+        - 67
+        - 115
+        - 121
+        - 136
+    ligand:
+      smiles: CCCCCCc1nc(N)nc(N)c1-c1ccccc1
+      reference_sdf: 7XI7_4RI_ligand.sdf
+  7XJN_NSD:
+    protein:
+      path: 7XJN_NSD_protein.pdb
+      residues:
+        C:
+        - 10
+        - 11
+        - 12
+        - 13
+        - 38
+        - 55
+        - 57
+        - 140
+        - 143
+        - 201
+        - 227
+        - 229
+        - 265
+        - 299
+    ligand:
+      smiles: NCCCNCCCN
+      reference_sdf: 7XJN_NSD_ligand.sdf
+  7XPO_UPG:
+    protein:
+      path: 7XPO_UPG_protein.pdb
+      residues:
+        A:
+        - 88
+        - 128
+        - 129
+        - 130
+        - 152
+        - 180
+        - 181
+        - 182
+        - 201
+        - 202
+        - 203
+        - 204
+        - 206
+        - 218
+        - 219
+        - 220
+        - 221
+        - 232
+        - 233
+        - 234
+        - 236
+        - 275
+        - 298
+        - 301
+        - 302
+    ligand:
+      smiles: O=c1ccn([C@@H]2O[C@H](CO[P@](=O)(O)O[P@](=O)(O)O[C@H]3O[C@H](CO)[C@@H](O)[C@H](O)[C@H]3O)[C@@H](O)[C@H]2O)c(=O)[nH]1
+      reference_sdf: 7XPO_UPG_ligand.sdf
+  7XQZ_FPF:
+    protein:
+      path: 7XQZ_FPF_protein.pdb
+      residues:
+        A:
+        - 99
+        - 102
+        - 103
+        - 106
+        - 133
+        - 135
+        - 136
+        - 139
+        - 178
+        - 218
+        - 219
+        - 222
+        - 225
+        - 263
+        - 271
+        - 273
+        - 274
+        - 313
+        - 314
+        - 324
+        - 363
+        - 467
+        - 468
+        - 469
+        - 470
+        - 471
+        - 475
+    ligand:
+      smiles: CC(C)=CCC/C(C)=C/CC/C(C)=C(\F)CO[P@@](=O)(O)OP(=O)(O)O
+      ions:
+      - '[Mg+2]'
+      - '[Mg+2]'
+      reference_sdf: 7XQZ_FPF_ligand.sdf
+  7XRL_FWK:
+    protein:
+      path: 7XRL_FWK_protein.pdb
+      residues:
+        A:
+        - 222
+        - 223
+        - 224
+        - 225
+        - 226
+        - 259
+        - 260
+        - 261
+        - 262
+        - 264
+        - 299
+        - 300
+        - 301
+        - 302
+    ligand:
+      smiles: CC[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O
+      reference_sdf: 7XRL_FWK_ligand.sdf
+  7YZU_DO7:
+    protein:
+      path: 7YZU_DO7_protein.pdb
+      residues:
+        A:
+        - 9
+        - 10
+        - 38
+        - 39
+        - 40
+        - 41
+        - 64
+        - 65
+        - 66
+        - 108
+        - 110
+        - 161
+        - 162
+        - 163
+        - 166
+        - 215
+        - 233
+        - 235
+        - 268
+        - 269
+        - 270
+        - 271
+        - 340
+    ligand:
+      smiles: CO[C@H]1O[C@H](CS(=O)(=O)O)[C@@H](O)[C@H](O)[C@H]1O
+      reference_sdf: 7YZU_DO7_ligand.sdf
+  7Z1Q_NIO:
+    protein:
+      path: 7Z1Q_NIO_protein.pdb
+      residues:
+        A:
+        - 68
+        - 103
+        - 117
+        - 125
+        - 126
+        - 129
+        - 150
+        - 168
+        - 169
+        - 172
+        - 173
+        - 176
+    ligand:
+      smiles: O=C(O)c1cccnc1
+      reference_sdf: 7Z1Q_NIO_ligand.sdf
+  7Z2O_IAJ:
+    protein:
+      path: 7Z2O_IAJ_protein.pdb
+      residues:
+        A:
+        - 78
+        - 79
+        - 80
+        - 99
+        - 100
+        - 101
+        - 108
+        - 110
+        - 115
+        - 116
+        - 121
+        - 176
+    ligand:
+      smiles: COc1cccc2sc3nncn3c12
+      reference_sdf: 7Z2O_IAJ_ligand.sdf
+  7Z7F_IF3:
+    protein:
+      path: 7Z7F_IF3_protein.pdb
+      residues:
+        A:
+        - 17
+        - 18
+        - 19
+        - 20
+        - 23
+        - 33
+        - 34
+        - 35
+        - 36
+        - 87
+        - 88
+        - 89
+        - 92
+        - 129
+        B:
+        - 21
+    ligand:
+      smiles: CNc1nc(NC)c2ncn(C)c2n1
+      reference_sdf: 7Z7F_IF3_ligand.sdf
+  7ZCC_OGA:
+    protein:
+      path: 7ZCC_OGA_protein.pdb
+      residues:
+        D:
+        - 130
+        - 137
+        - 138
+        - 141
+        - 143
+        - 147
+        - 149
+        - 156
+        - 158
+        - 213
+        - 219
+        - 221
+        - 231
+    ligand:
+      smiles: O=C(O)CNC(=O)C(=O)O
+      ions:
+      - '[Mn+2]'
+      reference_sdf: 7ZCC_OGA_ligand.sdf
+  7ZDY_6MJ:
+    protein:
+      path: 7ZDY_6MJ_protein.pdb
+      residues:
+        W:
+        - 603
+        Y:
+        - 64
+        - 102
+        - 150
+        - 164
+        - 167
+        - 201
+        - 202
+        - 206
+        - 246
+        - 249
+        - 281
+        - 282
+        - 415
+        - 496
+    ligand:
+      smiles: CO[C@@H]1OC[C@@H](O)[C@H](O)[C@H]1O
+      reference_sdf: 7ZDY_6MJ_ligand.sdf
+  7ZF0_DHR:
+    protein:
+      path: 7ZF0_DHR_protein.pdb
+      residues:
+        A:
+        - 10
+        - 15
+        - 82
+        - 86
+        - 124
+        - 153
+        - 200
+        - 210
+        - 214
+        - 217
+        - 296
+        - 392
+        - 393
+    ligand:
+      smiles: N#C[C@@H](O)c1ccc(O)cc1
+      reference_sdf: 7ZF0_DHR_ligand.sdf
+  7ZHP_IQY:
+    protein:
+      path: 7ZHP_IQY_protein.pdb
+      residues:
+        A:
+        - 20
+        - 21
+        - 28
+        - 41
+        - 43
+        - 54
+        - 57
+        - 58
+        - 61
+        - 71
+        - 85
+        - 87
+        - 88
+        - 89
+        - 90
+        - 91
+        - 154
+        - 155
+        - 156
+        - 157
+        - 158
+    ligand:
+      smiles: CCC(O)(C#Cc1ccc2[nH]c3c(c2c1)-c1nc(N)ncc1CCC3)CC
+      reference_sdf: 7ZHP_IQY_ligand.sdf
+  7ZL5_IWE:
+    protein:
+      path: 7ZL5_IWE_protein.pdb
+      residues:
+        A:
+        - 58
+        - 60
+        - 63
+        - 87
+        - 88
+        - 90
+        - 92
+        - 102
+        - 115
+        - 117
+        - 127
+        - 131
+        - 137
+        - 139
+        - 193
+        - 194
+        - 195
+        - 196
+        - 197
+        - 198
+        - 200
+        - 203
+        - 205
+    ligand:
+      smiles: NS(=O)(=O)c1cc(-c2nnn[nH]2)c(NCc2cccs2)cc1Cl
+      ions:
+      - '[Zn+2]'
+      reference_sdf: 7ZL5_IWE_ligand.sdf
+  7ZOC_T8E:
+    protein:
+      path: 7ZOC_T8E_protein.pdb
+      residues:
+        A:
+        - 83
+        - 85
+        - 86
+        - 87
+        - 89
+        - 114
+        - 115
+        - 118
+        - 121
+        - 122
+        - 130
+        - 136
+        - 145
+        - 146
+        - 190
+        - 197
+    ligand:
+      smiles: CC(=O)c1ccc(NC(=O)[C@H](C)S)cc1
+      ions:
+      - '[Zn+2]'
+      reference_sdf: 7ZOC_T8E_ligand.sdf
+  7ZTL_BCN:
+    protein:
+      path: 7ZTL_BCN_protein.pdb
+      residues:
+        A:
+        - 18
+        - 19
+        - 37
+        - 39
+        - 52
+        - 56
+        - 131
+        - 136
+        - 149
+        - 150
+        - 151
+        - 152
+    ligand:
+      smiles: O=C(O)CN(CCO)CCO
+      ions:
+      - '[Mg+2]'
+      - '[Mg+2]'
+      reference_sdf: 7ZTL_BCN_ligand.sdf
+  7ZU2_DHT:
+    protein:
+      path: 7ZU2_DHT_protein.pdb
+      residues:
+        A:
+        - 31
+        - 34
+        - 35
+        - 37
+        - 38
+        - 41
+        - 71
+        - 72
+        - 75
+        - 76
+        - 79
+        - 82
+        - 94
+        - 110
+        - 117
+        - 196
+        - 199
+        - 200
+        - 203
+        - 214
+        - 218
+        - 222
+    ligand:
+      smiles: C[C@]12CCC(=O)C[C@@H]1CC[C@@H]1[C@@H]2CC[C@]2(C)[C@@H](O)CC[C@@H]12
+      reference_sdf: 7ZU2_DHT_ligand.sdf
+  7ZXV_45D:
+    protein:
+      path: 7ZXV_45D_protein.pdb
+      residues:
+        A:
+        - 35
+        - 36
+        - 39
+        - 40
+        - 43
+        - 52
+        - 106
+        - 109
+        - 110
+        - 112
+        - 113
+        - 116
+        - 150
+        - 151
+        - 153
+        - 154
+        - 157
+        - 160
+        - 200
+        - 204
+        - 222
+        - 224
+        - 225
+        - 239
+        - 240
+        - 243
+        - 244
+        - 247
+        - 249
+        - 272
+        - 274
+        - 276
+        - 277
+        - 283
+        - 285
+        - 301
+    ligand:
+      smiles: CC1=C(/C=C/C(C)=C/C=C/C(C)=C/C=C/C=C(C)/C=C/C=C(C)/C=C/C2=C(C)C(=O)CCC2(C)C)C(C)(C)CCC1=O
+      reference_sdf: 7ZXV_45D_ligand.sdf
+  7ZZW_KKW:
+    protein:
+      path: 7ZZW_KKW_protein.pdb
+      residues:
+        B:
+        - 18
+        - 24
+        - 28
+        - 93
+        - 103
+        - 131
+        - 132
+        - 133
+        - 134
+        - 135
+        - 143
+        - 144
+        - 145
+        - 170
+        - 172
+        - 199
+        - 254
+        - 258
+        - 265
+        - 293
+        - 294
+        - 295
+        - 297
+    ligand:
+      smiles: O=C([C@H]1C[C@@H](c2cccc(Cl)c2)CN1)N1CCN(c2nccc3ccsc23)CC1
+      ions:
+      - '[Zn+2]'
+      reference_sdf: 7ZZW_KKW_ligand.sdf
+  8A1H_DLZ:
+    protein:
+      path: 8A1H_DLZ_protein.pdb
+      residues:
+        A:
+        - 9
+        - 10
+        - 11
+        - 12
+        - 33
+        - 34
+        - 35
+        - 38
+        - 39
+        - 41
+        - 44
+        - 48
+        - 49
+        - 52
+        - 53
+        - 56
+        - 105
+        - 106
+        - 107
+        - 109
+        - 110
+        - 406
+    ligand:
+      smiles: Cc1nc2c(=O)[nH]c(=O)nc-2n(C[C@H](O)[C@H](O)[C@H](O)CO)c1C
+      reference_sdf: 8A1H_DLZ_ligand.sdf
+  8A2D_KXY:
+    protein:
+      path: 8A2D_KXY_protein.pdb
+      residues:
+        A:
+        - 23
+        - 26
+        - 43
+        - 44
+        - 45
+        - 47
+        - 51
+        - 55
+        - 59
+        - 62
+        - 63
+        - 66
+        - 69
+        - 74
+        - 75
+        - 76
+        - 77
+        - 88
+        - 89
+        - 90
+        - 153
+        - 154
+        - 155
+        - 156
+        - 158
+    ligand:
+      smiles: Cc1c(C#Cc2ccc(CN3CCC(CO)CC3)cc2)cc(C(F)F)c2cn([C@@H](C(=O)Nc3nccs3)c3ncn4c3CCC43CC3)nc12
+      reference_sdf: 8A2D_KXY_ligand.sdf
+  8AAU_LH0:
+    protein:
+      path: 8AAU_LH0_protein.pdb
+      residues:
+        L:
+        - 18
+        - 19
+        - 26
+        - 39
+        - 40
+        - 41
+        - 57
+        - 61
+        - 70
+        - 84
+        - 86
+        - 87
+        - 88
+        - 89
+        - 90
+        - 91
+        - 92
+        - 93
+        - 137
+        - 138
+        - 140
+        - 150
+        - 151
+    ligand:
+      smiles: CC(C)C(=O)Nc1ncc(-c2cc(C(F)F)nn2-c2c(Cl)cccc2Cl)s1
+      reference_sdf: 8AAU_LH0_ligand.sdf
+  8AEM_LVF:
+    protein:
+      path: 8AEM_LVF_protein.pdb
+      residues:
+        A:
+        - 119
+        - 122
+        - 123
+        - 126
+        - 130
+        - 131
+        - 134
+        - 135
+        - 138
+        - 157
+        - 160
+        - 162
+        - 169
+        - 219
+        - 222
+        - 223
+    ligand:
+      smiles: N#CCc1c[nH]c2ccc(Cl)cc12
+      reference_sdf: 8AEM_LVF_ligand.sdf
+  8AIE_M7L:
+    protein:
+      path: 8AIE_M7L_protein.pdb
+      residues:
+        A:
+        - 28
+        B:
+        - 32
+        - 34
+        - 48
+        - 51
+        - 136
+        - 142
+        - 146
+        - 172
+        - 173
+        - 174
+        - 175
+        - 176
+        - 177
+        - 195
+        - 197
+        - 198
+        - 199
+        - 200
+        - 233
+        - 234
+        - 235
+        - 236
+        - 237
+    ligand:
+      smiles: Cc1ncc(COP(=O)(O)O)c(C/N=C(\CON)C(=O)O)c1O
+      reference_sdf: 8AIE_M7L_ligand.sdf
+  8AP0_PRP:
+    protein:
+      path: 8AP0_PRP_protein.pdb
+      residues:
+        A:
+        - 10
+        - 88
+        - 89
+        - 90
+        - 91
+        - 92
+        - 93
+        - 94
+        - 95
+        - 96
+        - 97
+        - 126
+        - 130
+        - 131
+        - 132
+        - 133
+        - 134
+        - 165
+        - 202
+        - 285
+    ligand:
+      smiles: O=P(O)(O)OC[C@H]1O[C@H](O[P@@](=O)(O)OP(=O)(O)O)[C@H](O)[C@@H]1O
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 8AP0_PRP_ligand.sdf
+  8AQL_PLG:
+    protein:
+      path: 8AQL_PLG_protein.pdb
+      residues:
+        A:
+        - 54
+        - 56
+        - 64
+        - 99
+        - 273
+        - 274
+        - 275
+        B:
+        - 40
+        - 42
+        - 108
+        - 109
+        - 110
+        - 111
+        - 113
+        - 137
+        - 139
+        - 140
+        - 190
+        - 191
+        - 192
+        - 217
+        - 219
+        - 220
+        - 243
+        - 245
+        - 246
+        - 382
+    ligand:
+      smiles: Cc1ncc(COP(=O)(O)O)c(CNCC(=O)O)c1O
+      reference_sdf: 8AQL_PLG_ligand.sdf
+  8AUH_L9I:
+    protein:
+      path: 8AUH_L9I_protein.pdb
+      residues:
+        A:
+        - 357
+        B:
+        - 24
+        - 26
+        - 65
+        - 105
+        - 177
+        - 180
+        - 182
+        - 268
+        - 301
+    ligand:
+      smiles: CCOC(=O)/C(=N\O)C(C)=O
+      reference_sdf: 8AUH_L9I_ligand.sdf
+  8AY3_OE3:
+    protein:
+      path: 8AY3_OE3_protein.pdb
+      residues:
+        A:
+        - 68
+        - 69
+        - 70
+        - 71
+        - 88
+        - 90
+        - 92
+        - 96
+        - 97
+        - 98
+        - 101
+        - 103
+        - 117
+        - 119
+        - 124
+        - 125
+        - 126
+        - 129
+        - 168
+        - 172
+        - 176
+        B:
+        - 182
+    ligand:
+      smiles: CCn1c(=O)cc(C)c2cc(CNS(=O)(=O)c3ccccc3)ccc21
+      reference_sdf: 8AY3_OE3_ligand.sdf
+  8B8H_OJQ:
+    protein:
+      path: 8B8H_OJQ_protein.pdb
+      residues:
+        A:
+        - 30
+        - 32
+        - 36
+        - 78
+        - 123
+        - 160
+        - 162
+        - 202
+        - 203
+        - 204
+        - 218
+        - 219
+        - 220
+        - 221
+        - 354
+        B:
+        - 262
+        - 281
+        - 309
+        - 310
+        - 311
+    ligand:
+      smiles: Cc1ncc(COP(=O)(O)O)c(C[NH2+]c2conc2O)c1O
+      reference_sdf: 8B8H_OJQ_ligand.sdf
+  8BOM_QU6:
+    protein:
+      path: 8BOM_QU6_protein.pdb
+      residues:
+        A:
+        - 15
+        - 16
+        - 17
+        - 23
+        - 34
+        - 35
+        - 36
+        - 53
+        - 56
+        - 57
+        - 60
+        - 65
+        - 66
+        - 80
+        - 81
+        - 82
+        - 83
+        - 84
+        - 85
+        - 88
+        - 120
+        - 125
+        - 127
+        - 136
+        - 145
+        - 146
+        - 147
+        - 148
+    ligand:
+      smiles: COc1cccc(NC(=O)c2ccc(C)c(Nc3nc(-c4cccnc4)nc4c3cnn4C)c2)c1
+      reference_sdf: 8BOM_QU6_ligand.sdf
+  8BTI_RFO:
+    protein:
+      path: 8BTI_RFO_protein.pdb
+      residues:
+        A:
+        - 43
+        - 44
+        - 102
+        - 147
+        - 148
+        - 151
+        - 183
+        - 195
+        - 199
+        - 227
+        - 228
+        - 250
+        - 254
+    ligand:
+      smiles: COCC(=O)n1ccc2c(Cl)cccc21
+      reference_sdf: 8BTI_RFO_ligand.sdf
+  8C3N_ADP:
+    protein:
+      path: 8C3N_ADP_protein.pdb
+      residues:
+        A:
+        - 29
+        - 30
+        - 31
+        - 32
+        - 33
+        - 34
+        - 35
+        - 36
+        - 37
+        - 71
+        - 74
+        - 182
+        - 188
+        - 207
+        - 208
+        - 209
+    ligand:
+      smiles: Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO[P@](=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 8C3N_ADP_ligand.sdf
+  8C5M_MTA:
+    protein:
+      path: 8C5M_MTA_protein.pdb
+      residues:
+        A:
+        - 43
+        - 71
+        - 73
+        - 74
+        - 99
+        - 100
+        - 101
+        - 113
+        - 114
+        - 115
+        - 130
+        - 131
+        - 132
+        - 133
+        - 149
+    ligand:
+      smiles: CSC[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O
+      reference_sdf: 8C5M_MTA_ligand.sdf
+  8CNH_V6U:
+    protein:
+      path: 8CNH_V6U_protein.pdb
+      residues:
+        A:
+        - 39
+        - 88
+        - 89
+        - 90
+        - 91
+        - 93
+        - 94
+        - 95
+        - 96
+        - 150
+        - 151
+        - 152
+        - 153
+        - 157
+        - 160
+        - 161
+        - 164
+        - 319
+        - 320
+        - 321
+        - 322
+    ligand:
+      smiles: COC(=O)c1ccccc1Cc1cn(C)nc1-c1cc(Cl)nc(N)n1
+      reference_sdf: 8CNH_V6U_ligand.sdf
+  8CSD_C5P:
+    protein:
+      path: 8CSD_C5P_protein.pdb
+      residues:
+        B:
+        - 160
+        - 162
+        - 225
+        - 226
+        - 227
+        - 262
+        - 263
+        - 264
+        - 265
+        - 283
+        - 284
+        - 298
+        - 299
+        - 300
+        - 301
+        - 304
+    ligand:
+      smiles: Nc1ccn([C@@H]2O[C@H](COP(=O)(O)O)[C@@H](O)[C@H]2O)c(=O)n1
+      reference_sdf: 8CSD_C5P_ligand.sdf
+  8D19_GSH:
+    protein:
+      path: 8D19_GSH_protein.pdb
+      residues:
+        A:
+        - 5
+        - 63
+        - 272
+        - 273
+        - 275
+        - 277
+        - 278
+        - 318
+        - 323
+        - 324
+        - 365
+        - 367
+        - 368
+        - 369
+        - 375
+    ligand:
+      smiles: N[C@@H](CCC(=O)N[C@@H](CS)C(=O)NCC(=O)O)C(=O)O
+      ions:
+      - '[Zn+2]'
+      reference_sdf: 8D19_GSH_ligand.sdf
+  8D39_QDB:
+    protein:
+      path: 8D39_QDB_protein.pdb
+      residues:
+        A:
+        - 64
+        - 76
+        - 79
+        - 81
+        - 82
+        - 165
+        - 166
+        - 169
+        - 227
+        - 228
+        - 231
+        - 232
+        - 236
+        - 279
+        - 281
+        - 282
+        - 379
+    ligand:
+      smiles: O=C(O)c1ccc(C(=O)c2ccccc2)cc1
+      reference_sdf: 8D39_QDB_ligand.sdf
+  8D5D_5DK:
+    protein:
+      path: 8D5D_5DK_protein.pdb
+      residues:
+        A:
+        - 341
+        - 377
+        - 378
+        - 379
+        - 420
+        B:
+        - 77
+        - 79
+        - 80
+        - 98
+        - 100
+        - 121
+        - 168
+        - 202
+        - 204
+        - 206
+        - 207
+        - 208
+        - 243
+        - 244
+        - 245
+        - 246
+        - 293
+        - 294
+        - 295
+        - 296
+        - 297
+        - 342
+        - 346
+        - 408
+    ligand:
+      smiles: Cc1ncc(COP(=O)(O)O)c(/C=N/[C@H](CCCNC(=N)N)C(=O)O)c1O
+      reference_sdf: 8D5D_5DK_ligand.sdf
+  8DHG_T78:
+    protein:
+      path: 8DHG_T78_protein.pdb
+      residues:
+        A:
+        - 10
+        - 14
+        - 15
+        - 18
+        - 19
+        - 22
+        - 24
+        - 27
+        - 28
+        - 30
+        - 31
+        - 34
+        - 35
+        - 39
+        - 40
+        - 70
+        - 83
+        - 106
+        - 108
+        - 115
+        - 320
+        - 323
+        - 324
+        - 327
+        - 328
+    ligand:
+      smiles: CCn1c(CO)nn(-c2nc(O[C@@H](C)C(F)(F)F)c(C(=O)Nc3c(C)ccnc3Cl)cc2F)c1=O
+      reference_sdf: 8DHG_T78_ligand.sdf
+  8DKO_TFB:
+    protein:
+      path: 8DKO_TFB_protein.pdb
+      residues:
+        A:
+        - 88
+        - 128
+        - 169
+        - 170
+        - 230
+        - 235
+        - 236
+        - 309
+        - 333
+        - 345
+        - 348
+        - 349
+    ligand:
+      smiles: O=C(O)[C@@H]1CCCO1
+      reference_sdf: 8DKO_TFB_ligand.sdf
+  8DP2_UMA:
+    protein:
+      path: 8DP2_UMA_protein.pdb
+      residues:
+        A:
+        - 11
+        - 12
+        - 13
+        - 14
+        - 15
+        - 16
+        - 17
+        - 34
+        - 35
+        - 36
+        - 37
+        - 74
+        - 75
+        - 76
+        - 77
+        - 97
+        - 118
+        - 140
+        - 141
+        - 142
+        - 143
+        - 145
+        - 160
+        - 162
+        - 164
+        - 165
+        - 186
+    ligand:
+      smiles: CC(=O)N[C@H]1[C@@H](O[P@@](=O)(O)O[P@](=O)(O)OC[C@H]2O[C@@H](n3ccc(=O)[nH]c3=O)[C@H](O)[C@@H]2O)O[C@H](CO)[C@@H](O)[C@@H]1O[C@H](C)C(=O)N[C@@H](C)C(=O)O
+      ions:
+      - '[Mg+2]'
+      reference_sdf: 8DP2_UMA_ligand.sdf
+  8DSC_NCA:
+    protein:
+      path: 8DSC_NCA_protein.pdb
+      residues:
+        A:
+        - 176
+        - 179
+        - 202
+        - 227
+        - 228
+        - 258
+        - 294
+        B:
+        - 8
+        - 10
+    ligand:
+      smiles: NC(=O)c1cccnc1
+      reference_sdf: 8DSC_NCA_ligand.sdf
+  8EAB_VN2:
+    protein:
+      path: 8EAB_VN2_protein.pdb
+      residues:
+        A:
+        - 12
+        - 19
+        - 20
+        - 21
+        - 53
+        - 54
+        - 56
+        - 57
+        - 58
+        - 59
+        - 61
+        - 112
+        B:
+        - 12
+        - 19
+        - 20
+        - 21
+        - 53
+        - 54
+        - 56
+        - 57
+        - 58
+        - 59
+        - 61
+        - 116
+    ligand:
+      smiles: O=C(N[C@H](C(=O)Nc1cnccc1-c1ccc(C(F)(F)F)cc1)c1cccc(C(F)(F)F)c1)c1cnccc1-c1ccc(C(F)(F)F)cc1
+      reference_sdf: 8EAB_VN2_ligand.sdf
+  8EX2_Q2Q:
+    protein:
+      path: 8EX2_Q2Q_protein.pdb
+      residues:
+        A:
+        - 16
+        - 17
+        - 18
+        - 24
+        - 44
+        - 46
+        - 91
+        - 92
+        - 93
+        - 94
+        - 95
+        - 96
+        - 97
+        - 98
+        - 142
+        - 143
+        - 145
+        - 163
+    ligand:
+      smiles: O=C1CC(c2ccccc2)=Nc2c(-c3ccccc3)c(C(F)(F)F)nn21
+      reference_sdf: 8EX2_Q2Q_ligand.sdf
+  8EXL_799:
+    protein:
+      path: 8EXL_799_protein.pdb
+      residues:
+        A:
+        - 626
+        - 628
+        - 630
+        - 634
+        - 636
+        - 656
+        - 658
+        - 663
+        - 666
+        - 692
+        - 704
+        - 705
+        - 706
+        - 707
+        - 708
+        - 709
+        - 710
+        - 711
+        - 712
+        - 715
+        - 770
+        - 778
+        - 780
+        - 781
+    ligand:
+      smiles: Cc1nc(-c2cn3c(n2)-c2ccc(-c4cnn(C(C)(C)C(N)=O)c4)cc2OCC3)n(C(C)C)n1
+      reference_sdf: 8EXL_799_ligand.sdf
+  8EYE_X4I:
+    protein:
+      path: 8EYE_X4I_protein.pdb
+      residues:
+        A:
+        - 109
+        - 110
+        - 122
+        - 124
+        - 125
+        - 263
+        - 264
+        - 265
+        - 266
+        - 267
+        - 268
+        - 294
+        - 301
+        - 302
+        - 305
+        - 324
+        - 376
+        - 377
+        - 380
+        - 381
+        - 382
+        - 385
+        - 839
+        - 843
+    ligand:
+      smiles: O=C(CNc1cc(F)cc(F)c1)N[C@@H](C(=O)NO)c1ccc(-c2cc(F)c(F)c(F)c2)cc1
+      ions:
+      - '[Zn+2]'
+      reference_sdf: 8EYE_X4I_ligand.sdf
+  8F4J_PHO:
+    protein:
+      path: 8F4J_PHO_protein.pdb
+      residues:
+        A:
+        - 196
+        - 199
+        - 200
+        - 203
+        - 204
+        - 207
+        - 245
+        - 248
+        - 249
+        D:
+        - 26
+        - 30
+        - 33
+        - 34
+        - 37
+        - 103
+        - 107
+        - 110
+        - 111
+        - 114
+        - 118
+        - 131
+        - 134
+        - 135
+        - 137
+        - 138
+        - 142
+        - 162
+        - 163
+        - 164
+        - 167
+        - 193
+        - 264
+        - 265
+        - 268
+    ligand:
+      smiles: C=Cc1c(C)c2cc3nc(c4c5[nH]c(cc6nc(cc1[nH]2)C(C)=C6CC)c(C)c5C(=O)[C@@H]4C(=O)OC)[C@@H](CCC(=O)OC/C=C(\C)CCC[C@H](C)CCC[C@H](C)CCCC(C)C)[C@@H]3C
+      reference_sdf: 8F4J_PHO_ligand.sdf
+  8F8E_XJI:
+    protein:
+      path: 8F8E_XJI_protein.pdb
+      residues:
+        A:
+        - 18
+        - 20
+        - 60
+        - 61
+        - 62
+        - 102
+        - 146
+        - 148
+        - 219
+        - 220
+        - 221
+        - 230
+        - 231
+        - 232
+        - 234
+        - 238
+        - 239
+        - 243
+        - 263
+        - 264
+        - 265
+        - 266
+    ligand:
+      smiles: NC(=O)C[C@H](NC(=O)c1c[nH]nc1-c1ccc(Cl)cc1F)c1ccc(F)c(Cl)c1
+      reference_sdf: 8F8E_XJI_ligand.sdf
+  8FAV_4Y5:
+    protein:
+      path: 8FAV_4Y5_protein.pdb
+      residues:
+        B:
+        - 58
+        - 62
+        - 65
+        - 66
+        - 69
+        - 70
+        - 73
+        - 94
+        - 95
+        - 96
+        - 98
+        - 99
+        - 221
+        - 224
+        - 225
+        - 228
+        - 233
+        - 235
+        - 236
+        - 237
+        - 238
+        - 239
+        - 240
+        - 242
+        - 243
+        - 246
+        - 247
+    ligand:
+      smiles: O=C(O)c1ccc(-c2nn(C(=O)c3c(Cl)cccc3C(F)(F)F)c3cccc(F)c23)c(F)c1
+      reference_sdf: 8FAV_4Y5_ligand.sdf
+  8FLV_ZB9:
+    protein:
+      path: 8FLV_ZB9_protein.pdb
+      residues:
+        A:
+        - 16
+        - 21
+        - 22
+        - 23
+        - 24
+        - 36
+        - 38
+        - 39
+        - 40
+        - 45
+        - 80
+        - 82
+        - 83
+        - 84
+        - 85
+        - 86
+        - 88
+        - 89
+        - 133
+        - 136
+        - 147
+        - 150
+    ligand:
+      smiles: CN(c1ncnc2[nH]ccc12)[C@@H]1CCCN(C(=O)CNc2cc(Cl)cc(Cl)c2)C1
+      reference_sdf: 8FLV_ZB9_ligand.sdf
+  8FO5_Y4U:
+    protein:
+      path: 8FO5_Y4U_protein.pdb
+      residues:
+        A:
+        - 38
+        - 40
+        - 46
+        - 89
+        - 101
+        - 102
+        B:
+        - 38
+        - 40
+        - 46
+        - 47
+        - 48
+        - 89
+        - 101
+    ligand:
+      smiles: CC(=O)c1ccn(S(=O)(=O)c2ccccc2)c1
+      reference_sdf: 8FO5_Y4U_ligand.sdf
+  8G0V_YHT:
+    protein:
+      path: 8G0V_YHT_protein.pdb
+      residues:
+        B:
+        - 280
+        - 322
+        - 323
+        - 324
+        - 398
+        - 399
+        - 400
+        - 401
+        - 402
+        - 424
+        - 425
+        - 426
+        - 427
+        - 428
+        - 429
+        - 430
+        - 513
+        - 515
+        - 527
+        - 530
+        - 626
+    ligand:
+      smiles: C#CCO[P@](=O)(O)OC[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O
+      reference_sdf: 8G0V_YHT_ligand.sdf
+  8G6P_API:
+    protein:
+      path: 8G6P_API_protein.pdb
+      residues:
+        A:
+        - 367
+        - 369
+        - 395
+        - 396
+        - 399
+        - 403
+        - 423
+        - 424
+        - 426
+        - 477
+        - 478
+        - 481
+    ligand:
+      smiles: N[C@H](CCC[C@H](N)C(=O)O)C(=O)O
+      reference_sdf: 8G6P_API_ligand.sdf
+  8GFD_ZHR:
+    protein:
+      path: 8GFD_ZHR_protein.pdb
+      residues:
+        A:
+        - 299
+        - 303
+        - 307
+        - 332
+        - 370
+        - 371
+        - 372
+        - 373
+        - 375
+        - 378
+        - 379
+        - 380
+        - 381
+        - 384
+        - 389
+        - 445
+        - 479
+        - 483
+    ligand:
+      smiles: CC(=O)N[C@H]1[C@H](OCCc2ccc3occc3c2)O[C@H](CO)[C@@H](O)[C@@H]1O
+      reference_sdf: 8GFD_ZHR_ligand.sdf
+  8HFN_XGC:
+    protein:
+      path: 8HFN_XGC_protein.pdb
+      residues:
+        A:
+        - 44
+        - 45
+        - 46
+        - 47
+        - 53
+        - 55
+        - 56
+        - 59
+        - 60
+        - 82
+        - 84
+        - 228
+        - 232
+        - 250
+        - 251
+        - 252
+        - 253
+        - 257
+        - 281
+        - 282
+        - 283
+        - 284
+        - 290
+    ligand:
+      smiles: COc1ccc(-c2cccc(S(=O)(=O)NC(=O)[C@@H](N)CS)c2)cn1
+      ions:
+      - '[Zn+2]'
+      reference_sdf: 8HFN_XGC_ligand.sdf
+  8HO0_3ZI:
+    protein:
+      path: 8HO0_3ZI_protein.pdb
+      residues:
+        A:
+        - 70
+        - 71
+        - 75
+        - 172
+        - 234
+        - 276
+        - 277
+        - 278
+        - 279
+        - 280
+        - 281
+        - 282
+        - 306
+        - 333
+        - 380
+        - 381
+    ligand:
+      smiles: O=C1N[C@@H](Cc2c[nH]c3c(F)cccc23)C(=O)N2CCC[C@@H]12
+      reference_sdf: 8HO0_3ZI_ligand.sdf
+  8SLG_G5A:
+    protein:
+      path: 8SLG_G5A_protein.pdb
+      residues:
+        B:
+        - 148
+        - 149
+        - 151
+        - 181
+        - 183
+        - 190
+        - 191
+        - 192
+        - 193
+        - 196
+        - 198
+        - 200
+        - 248
+        - 268
+        - 269
+        - 270
+        - 271
+        - 275
+        - 308
+        - 310
+        - 311
+        - 312
+        - 314
+        - 315
+    ligand:
+      smiles: NCC(=O)NS(=O)(=O)OC[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O
+      reference_sdf: 8SLG_G5A_ligand.sdf

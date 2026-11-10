@@ -1,5 +1,6 @@
 from .process import InferenceProcessor, process_single_complex
-from .sampler import FlowMatchingSampler, run_inference, get_time_schedule
+from .sampler import FlowMatchingSampler, SDEConfig, get_time_schedule
+from .guidance import GuidanceConfig, TweedieGuidance
 from .visualize import (
     visualize_trajectory,
     visualize_final_samples,
@@ -17,9 +18,11 @@ from .vina_scoring import (
     assign_xs_types,
     count_rotatable_bonds,
     count_active_torsions,
+    extract_protein_pdb,
+    vina_binary_score,
+    vina_binary_score_pose,
 )
 from .relaxation import (
-    relax_complex,
     write_complex_cif,
     write_complex_cif_from_dir,
     write_complex_trajectory_cif,

@@ -34,6 +34,10 @@ import shutil
 from equiflex.prep.featurize import featurize_atoms, featurize_bonds, UniMolExtractor, ESM3Extractor
 from equiflex.prep.parse import get_sp2_torsion_indices
 from equiflex.prep.const import STD_AA_ATOMS, NONSTD_AA_ATOMS, AA_3_TO_1
+from equiflex.prep.validation import (
+    SIGNATURE_KEY, ligand_atom_signature, validate_ligand_records,
+    unimol_cache_reason, save_unimol_cache,
+)
 
 # Backbone atoms that remain fixed during flow matching
 BACKBONE_ATOMS = {'N', 'CA', 'C', 'O'}
@@ -321,6 +325,7 @@ def process_ligands(ligands: List[Dict]) -> Dict:
         'ligand_uid_vec': ligand_uid_vec,
         'smiles_list': smiles_list,
         'n_atoms_per_ligand': n_atoms_per_ligand,
+        SIGNATURE_KEY: ligand_atom_signature(ligands),
         'sp2_torsion_indices': sp2_torsion_indices,
         'torsion_ligand_idx': torsion_ligand_idx,
         'constraint_matrix': constraint_matrix,
@@ -638,16 +643,17 @@ def featurize_single_system(system_dir: Path, cleanup_invalid: bool = True, skip
         ligand_out = system_dir / 'ligand_features.pt'
         pocket_out = system_dir / 'pocket_features.pt'
         if skip_existing and ligand_out.exists() and pocket_out.exists():
-            # Still collect stats from existing files
+            # Verify the current ordered ligand list, not just file existence.
             try:
                 lig_data = torch.load(ligand_out, weights_only=False)
                 pkt_data = torch.load(pocket_out, weights_only=False)
+                validate_ligand_records(ligands, lig_data, system_name)
                 stats['n_ligand_atoms'] = lig_data['atom_features'].shape[0]
                 stats['n_pocket_atoms'] = pkt_data['atom_features'].shape[0]
                 stats['n_missing_atoms'] = int(pkt_data['missing_mask'].sum().item())
-            except:
-                pass
-            return system_name, True, "skipped (exists)", stats
+                return system_name, True, "skipped (validated)", stats
+            except Exception as exc:
+                print(f'{system_name}: rebuilding graph features: {exc}')
 
         # Process ligands
         ligand_features = process_ligands(ligands)
@@ -837,6 +843,10 @@ def _run_unimol_subbatch(unimol_extractor, sub_dirs, sub_smiles, sub_atoms,
 
     try:
         embeddings_flat = unimol_extractor.extract_batch(sub_smiles, sub_atoms)
+        expected_ligands = sum(len(counts) for counts in sub_per_system_n_atoms)
+        if len(embeddings_flat) != expected_ligands:
+            raise ValueError(f'Uni-Mol returned {len(embeddings_flat)} ligand tensors '
+                             f'for {expected_ligands} ligand entities')
     except Exception as e:
         if _is_oom_error(e):
             torch.cuda.empty_cache()
@@ -873,19 +883,24 @@ def _run_unimol_subbatch(unimol_extractor, sub_dirs, sub_smiles, sub_atoms,
     succeeded = []
     flat_idx = 0
     for sd, n_atoms_per_lig in zip(sub_dirs, sub_per_system_n_atoms):
-        embeds = []
-        for n in n_atoms_per_lig:
-            emb = embeddings_flat[flat_idx]
-            if emb is None:
-                embeds.append(torch.zeros(n, 1536))
-            else:
-                embeds.append(emb)
-            flat_idx += 1
+        system_embeddings = embeddings_flat[flat_idx:flat_idx + len(n_atoms_per_lig)]
+        flat_idx += len(n_atoms_per_lig)
         try:
+            embeds = []
+            for n, emb in zip(n_atoms_per_lig, system_embeddings):
+                if emb is None:
+                    embeds.append(torch.zeros(n, 1536))
+                elif emb.ndim != 2 or emb.shape[0] != n:
+                    raise ValueError(f'ligand entity expects {n} embedding rows; '
+                                     f'got tensor shape {tuple(emb.shape)}')
+                else:
+                    embeds.append(emb)
             full = torch.cat(embeds, dim=0) if embeds else None
             if full is None:
                 raise ValueError("no embeddings produced")
-            torch.save(full, sd / 'unimol_embeddings.pt')
+            ligand_features = torch.load(sd / 'ligand_features.pt', weights_only=False)
+            ligands = load(sd / 'ligands.pkl')
+            save_unimol_cache(sd, ligand_features, ligands, full)
             succeeded.append(sd)
         except Exception as e:
             errors.append((sd.name, str(e)))
@@ -905,8 +920,8 @@ def run_step3_unimol_extraction(
     Step 3: UniMol extraction (batched GPU).
 
     Step-3 strict mode is intentionally NON-destructive: failed UniMol systems
-    keep their pocket/ligand/esm3 artifacts; the training loader is responsible
-    for substituting zeros for missing unimol_embeddings.pt. This avoids the
+    keep their pocket/ligand/esm3 artifacts and are excluded from succeeded_dirs.
+    The loader rejects incomplete/inconsistent data rather than guessing rows. This avoids the
     batch-OOM-wipe failure mode where 1 OOM destroyed N-1 innocent systems.
 
     On CUDA OOM, the offending batch is split in half and retried recursively
@@ -916,9 +931,6 @@ def run_step3_unimol_extraction(
     print("STEP 3: UniMol Embedding Extraction")
     print("="*60)
 
-    print(f"Loading UniMol model ({model_size})...")
-    unimol_extractor = UniMolExtractor(model_size=model_size)
-
     items_to_process = []
     skip_count = 0
     succeeded_dirs = []
@@ -926,12 +938,25 @@ def run_step3_unimol_extraction(
     for system_dir in valid_dirs:
         unimol_out = system_dir / 'unimol_embeddings.pt'
         if skip_existing and unimol_out.exists():
-            skip_count += 1
-            succeeded_dirs.append(system_dir)
-            continue
+            try:
+                features = torch.load(system_dir / 'ligand_features.pt', weights_only=False)
+                ligands = load(system_dir / 'ligands.pkl')
+                reason = unimol_cache_reason(system_dir, features, ligands)
+            except Exception as exc:
+                reason = str(exc)
+            if reason is None:
+                skip_count += 1
+                succeeded_dirs.append(system_dir)
+                continue
+            print(f'{system_dir.name}: regenerating Uni-Mol cache: {reason}')
         items_to_process.append(system_dir)
 
     print(f"Items to process: {len(items_to_process)}, Skipped: {skip_count}, batch_size={batch_size}")
+
+    if not items_to_process:
+        return succeeded_dirs
+    print(f"Loading UniMol model ({model_size})...")
+    unimol_extractor = UniMolExtractor(model_size=model_size)
 
     success_count = 0
     error_count = 0
@@ -950,6 +975,7 @@ def run_step3_unimol_extraction(
                 ligands = load(system_dir / 'ligands.pkl')
                 ligand_features = torch.load(system_dir / 'ligand_features.pt', weights_only=False)
                 n_atoms_per_ligand = list(ligand_features['n_atoms_per_ligand'])
+                validate_ligand_records(ligands, ligand_features, system_dir.name)
             except Exception as e:
                 errors.append((system_dir.name, f"load error: {e}"))
                 error_count += 1
@@ -981,7 +1007,7 @@ def run_step3_unimol_extraction(
 
 
 def main(
-    data_dir: str = '/home/mhjang/workspace/flex/data',
+    data_dir: str = 'data',
     n_jobs: int = -1,
     skip_existing: bool = True,
     cleanup_invalid: bool = True,
@@ -1027,7 +1053,8 @@ def main(
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', type=str, default='/home/mhjang/workspace/flex/data')
+    parser.add_argument('--data_dir', type=str, required=True,
+                        help='Root holding one parsed system directory per system')
     parser.add_argument('--n_jobs', type=int, default=-1, help='Number of parallel jobs for Step 1')
     parser.add_argument('--no_skip', action='store_true', help='Reprocess even if features exist')
     parser.add_argument('--no_cleanup', action='store_true', help='Do not remove invalid directories')

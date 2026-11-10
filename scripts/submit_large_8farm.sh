@@ -19,11 +19,11 @@ echo "CPUs per task: $SLURM_CPUS_PER_TASK"
 echo "Starting time: $(date)"
 echo "=============================================="
 
-WORK_DIR="/home/mhjang01/workspace/flex"
-PYTHON_BIN="/home/mhjang01/.conda/envs/flex/bin/python"
+WORK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TORCHRUN="${TORCHRUN:-$WORK_DIR/.venv/bin/torchrun}"
 
 ulimit -n 100000
-/home/mhjang01/.conda/envs/flex/bin/torchrun --standalone --nproc_per_node=8 "$WORK_DIR/train_multigpu.py" --config "$WORK_DIR/configs/large.yaml"
+cd "$WORK_DIR" && "$TORCHRUN" --standalone --nproc_per_node=8 scripts/train.py --config configs/v10_512.yaml "$@"
 
 echo "=============================================="
 echo "Ending time: $(date)"

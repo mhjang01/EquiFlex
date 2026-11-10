@@ -185,7 +185,7 @@ def main():
     parser = argparse.ArgumentParser(description='Overfit test for Flex model')
     parser.add_argument('--system', type=str, required=True,
                         help='Path to system directory to overfit on')
-    parser.add_argument('--config', type=str, default='configs/base.yaml',
+    parser.add_argument('--config', type=str, default='configs/v10_512.yaml',
                         help='Path to config file')
     parser.add_argument('--max-steps', type=int, default=5000,
                         help='Maximum training steps')

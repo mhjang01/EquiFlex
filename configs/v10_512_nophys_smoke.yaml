@@ -1,0 +1,198 @@
+# =============================================================================
+# EquiFlex v10 512 ablation: NO PHYSICS LOSS (2026-11-01, mas2)
+# =============================================================================
+# All v10 flags (see .omc/plans/v10_arch.md), entity triangle scope, naive TP,
+# narrow and deep: ns 512 (8 atom heads x 64), nv 32 / 8 geo heads (4 vec/head),
+# 6 atom + 6 geometric layers, outer-product-mean (c=32) single->pair mixing,
+# gradient checkpointing every 2 layers. 76.4M params. Sweep at N=494, bs 8:
+# 23 GiB (extrapolated), 2.31 s/step on a 3090 = v9's step time.
+#
+model:
+  # Input dimensions (from featurization)
+  atom_feat_dim: 299
+  bond_feat_dim: 26
+  esm_dim: 1536
+  unimol_dim: 1536
+
+  # Hidden dimensions
+  ns: 512
+  nv: 32
+  pair_hidden_dim: 256
+
+  # Architecture
+  num_atom_layers: 6
+  num_geo_layers: 6
+
+  # Attention
+  num_atom_heads: 8             # head dim 64
+  num_geo_heads: 8            # 4 vector channels/head
+  attn_dropout: 0.0
+  use_gated_attention: true
+  use_qk_norm: true
+  return_attn_stats: false
+
+  # Regularization
+  initial_dropout: 0.3
+  output_dropout: 0.1
+
+  # Pairwise features
+
+  # Embeddings
+  use_embeddings: true
+
+  # Equivariance
+  soft_cap: 30.0
+
+  # Prior x0 noise scale (Å). Sidechain noise ~ N(CB_center, sigma^2); ligand
+  # noise ~ N(pocket_backbone_COM, sigma^2). ligand_prior_sigma ~= dataset median
+  # ligand R_g (~4.0) so the prior cloud matches the ligand's location+extent
+  # instead of a tight 1-A blob it must explode outward from.
+  sidechain_prior_sigma: 2.0
+  ligand_prior_sigma: 4.0
+
+  # #1 live per-head distance bias in the flow-trunk attention (proximity routing)
+  geo_dist_bins: 32
+  geo_dist_max: 20.0
+
+  # Chemistry trunk is intra-molecular (rec<->lig coupling deferred to flow trunk)
+
+  # v10 architecture flags (Part A of .omc/plans/v10_arch.md)
+  chem_ffn_mult: 4
+  chem_pair_transition_mult: 2
+  tp_method: naive
+  chem_opm_dim: 32           # outer-product-mean single->pair mixing (no [N,N,ns] tensor)
+
+  # Time conditioning
+  time_embed_dim: 384
+  time_max_period: 10000
+
+  # Memory optimization
+  use_gradient_checkpointing: true
+  gradient_checkpoint_every: 2   # 512/32/6/6: 23 GiB extrap. at bs 8, 2.31 s/step (= v9); every-1 = 10.7 GiB, 2.69 s
+
+# =============================================================================
+# Loss Functions
+# =============================================================================
+loss:
+  flow_weight: 1
+  num_unrolls: 1
+  unroll_curriculum: false  # single unroll, nothing to ramp
+
+  # Local chemistry geometry. These are higher than the original v5_32m_deep
+  # config because vdW now includes less-diluted clash terms; ring geometry
+  # needs enough restoring force to avoid learning Cartesian atom bends.
+  bond_length_weight: 10.0
+  bond_buffer: 0.05
+  bond_huber_cutoff: 5.0
+
+  bond_angle_weight: 10.0
+  angle_buffer: 0.05
+  angle_huber_cutoff: 5.0
+
+  # vdW definition mirrors the inference guidance (buffer 0.225, cutoff 6.0,
+  # active_scale 0.10, max term off). Weights are set by gradient balance, not
+  # copied from guidance: with vdw 5 / active 1 / torsion 5 the step-6000 probe
+  # (scratchpad gradprobe.py) gave torsion 88%, vdw 0.2%, vdw_active 1% of the
+  # physics-group gradient norm. Muon ignores overall scale and ConFIG balances
+  # flow vs physics by direction, so only the within-physics shares matter.
+  vdw_weight: 1.0            # unified hinge term; gradient probe on step-17k weights -> ~0.55 of the physics gradient
+  vdw_active_weight: 0.0     # folded into the hinge term
+  vdw_max_weight: 0.0
+  vdw_buffer: 0.20           # crystal: 1.2% of ligand atoms inside this bound (3.5% at 0.15)
+  vdw_cutoff: 6.0
+  vdw_form: hinge             # per-ligand-atom hinge (p^2+2p) over all nonbonded pairs
+  vdw_rec_rec_ratio: 0.15     # receptor-receptor pairs (both atoms movable) at 15% of ligand-pair weight
+  vdw_active_scale: 0.10
+  vdw_max_alpha: 40.0
+
+  # Planarity support for aromatic/sp2 groups. This is not true rigid-ring
+  # enforcement, but it helps bond/angle terms resist vdW-driven bending.
+  torsion_weight: 0.5        # was 88% of the physics gradient at 5.0; guidance uses torsion_coef 0.25
+
+  # Signed-improper restraint on ligand stereocentres (as chiral_coef at inference).
+  chiral_weight: 1.0
+
+  # Native ligand-receptor H-bond contact recovery (supervised by the crystal contact set)
+  hbond_weight: 0.5          # gradient-share probe on step-17k weights (see memory notes)
+  hbond_native_cutoff: 3.5
+  hbond_huber_cutoff: 1.0    # quadratic within 1 A of the cutoff, linear beyond (mis-docked poses)
+  chiral_buffer: 0.5236
+
+# =============================================================================
+# Data Loading
+# =============================================================================
+data:
+  data_dir: 'data_v2_plinder/trainval'       # symlinks to train/ and val/ so the CSV's val ids resolve
+  test_data_dir: 'data_v2_plinder/test'      # held-out systems: test/*_loss + test_rmsd
+  pb_data_dir: 'data/posebusters/featurized'       # PoseBusters benchmark: pb/*_loss + pb_rmsd
+  batch_size: 16              # timestep copies per system (A100: 26.4 GiB at N=494 with ckpt every 2)
+  systems_per_batch: 1        # one system per microbatch: the padded N^2 trunk is paid once
+  pad_systems: true            # one padded batch instead of iterating a Python list
+  val_batches: 2000
+  num_workers: 5            # mas2 auto-assigns 6 CPUs/GPU = 24 for 4 GPUs (dream used 16 with 48 CPUs)
+  shuffle: true
+  pin_memory: true
+  preload: false
+  split_csv: 'data_v2_plinder/splits_v9.csv'   # splits_max500 minus covalent sugars, near-identical asymmetric-unit copies collapsed (no seqsim filter)
+
+# =============================================================================
+# Optimizer (Muon + AdamW)
+# =============================================================================
+optimizer:
+  optimizer_type: 'muon'
+  muon_lr: 5.0e-3
+  muon_momentum: 0.95
+  adam_lr: 1.0e-4   # 1-D params only (LN gains, AdaLN biases, vnorm gamma) after the is_bias fix; v9 had 1e-5
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  adam_eps: 1.0e-10
+  muon_weight_decay: 0.1    # decoupled: p *= 1 - lr*wd per step -> 5e-4/step at peak lr
+  adam_weight_decay: 0.0    # biases and norm gains only
+
+# =============================================================================
+# Scheduler
+# =============================================================================
+scheduler:
+  warmup_steps: 2000   # v10 has many zero-init paths + 6 fresh chem layers; v9 used 1000
+  start_factor: 1.0e-3
+  end_factor: 1.0e-5
+
+# =============================================================================
+# EMA
+# =============================================================================
+ema:
+  enabled: true
+  decay: 0.9999
+
+# =============================================================================
+# Logging
+# =============================================================================
+logging:
+  use_wandb: false              # no outbound network: CSV logger instead
+  wandb_project: 'flex'
+  wandb_run_name: v10_512_nophys_smoke
+  wandb_entity: null
+  log_every_n_steps: 1
+  watch_model: true
+  watch_log: 'all'
+  watch_log_freq: 10000
+  checkpoint_dir: 'checkpoints'
+  save_top_k: 3
+  checkpoint_every_n_steps: 100000
+
+# =============================================================================
+# Training
+# =============================================================================
+training:
+  max_steps: 40
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 16  # 16 copies x 16 x 4 GPUs = 1024 effective; 64 distinct systems/step; 28.8 s/opt step vs 54 at bs8/accum32
+  val_check_interval: 20000   # MICROBATCHES (Lightning), = 156 optimizer steps ~1 h at accum 32; full eval costs ~3.5 min
+  precision: 'bf16-mixed'
+  devices: 4
+  seed: 990131
+  phys_loss_warmup_steps: 50000   # == max_steps: aux_scale stays 0 for the whole run -> physics_group is a detached zero, unroll skipped, ConFIG degenerates to the flow gradient. Flow-only ablation of configs/v10_512.yaml.
+  num_rmsd_samples: 30
+  num_steps: 50
+  timestep_sampler: 'uniform'
+  use_config: true

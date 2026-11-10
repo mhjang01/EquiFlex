@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Union
 from .const import AA_URL, STD_AA_ATOMS, NONSTD_AA_ATOMS
 import requests
-from .parse import get_rdkit_mol, extract_atom_data, extract_bond_data, extract_coordinates, get_sp2_torsion_indices, compute_mol_context
+from .parse import get_rdkit_mol, extract_atom_data, extract_bond_data, extract_coordinates, get_sp2_torsion_indices, get_chiral_atom_indices, compute_mol_context
 
 #### Amino Acid Reference ####
 
@@ -157,6 +157,7 @@ def generate_ligand_reference_data(mol_or_smiles):
     bonds = [extract_bond_data(bond) for bond in mol.GetBonds()]
     coords, mat = extract_ligand_dist_info(mol)
     sp2_torsion_indices = get_sp2_torsion_indices(atoms, bonds)
+    chiral_atom_indices = get_chiral_atom_indices(mol)
 
     if coords is None:
         return None
@@ -167,6 +168,7 @@ def generate_ligand_reference_data(mol_or_smiles):
         'ref_coords': coords,
         'constraint_matrix': mat,
         'sp2_torsion_indices': sp2_torsion_indices,
+        'chiral_atom_indices': chiral_atom_indices,
         'mapping': mapping,
     }
 

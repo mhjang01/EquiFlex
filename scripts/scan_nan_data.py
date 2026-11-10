@@ -100,7 +100,7 @@ def scan_dir(data_dir: Path, min_dist_threshold: float, workers: int, limit: int
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--data', default='./data_v2_plinder')
+    ap.add_argument('--data', required=True, help='featurised data root containing the split subdirectories')
     ap.add_argument('--splits', nargs='+', default=['train', 'test'])
     ap.add_argument('--min-dist', type=float, default=1e-3)
     ap.add_argument('--workers', type=int, default=12)

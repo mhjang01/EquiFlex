@@ -27,7 +27,7 @@ def parse_flagged_ids(report_path: Path) -> set[str]:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--report', default='nan_scan_report.txt')
-    ap.add_argument('--splits', default='data_v2_plinder/splits.csv')
+    ap.add_argument('--splits', required=True, help='splits.csv to filter in place')
     ap.add_argument('--dry-run', action='store_true')
     args = ap.parse_args()
 

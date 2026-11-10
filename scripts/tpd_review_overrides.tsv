@@ -1,0 +1,87 @@
+record	decision	class	note
+7BQU_204ad967a5a15f6baf8f	pass	molecular_glue	CRBN-SALL4 (S)-thalidomide
+7BQV_c0556a0dd56d35370069	pass	molecular_glue	CRBN-SALL4 (S)-5-hydroxythalidomide
+5FQD_3ca09f2a5cca915ea794	pass	molecular_glue	CRBN-CK1a lenalidomide
+5HXB_6a32ee2c82241fa6c6d3	pass	molecular_glue	CRBN-GSPT1 CC-885
+7LPS_6ca058c00b0cf3605e29	pass	molecular_glue	CRBN-Helios
+6SJ7_57449b31234f72f5ce55	pass	molecular_glue	DCAF15-RBM39 E7820
+9SQ5_fa624cfdbf5e5468f169	pass	molecular_glue	CRBN-Ikaros pomalidomide
+9SQ4_cfb144d3c2b9614b254d	pass	molecular_glue	CRBN-SALL4 pomalidomide
+6UD7_57449b31234f72f5ce55	pass	molecular_glue	DCAF15-RBM39 E7820
+6UE5_859560f71230380445fd	pass	molecular_glue	DCAF15-RBM39 tasisulam
+6UML_e0116735f6daf88d3395	pass	molecular_glue	CRBN-SALL4 pomalidomide
+9Y7D_0df053dd4abb7c95533e	pass	molecular_glue	CRBN-Ikaros
+9SV3_e7c9499876212e800f49	pass	protac	14-3-3/VHL bifunctional; detergent flag is the linker
+9L6F_e0269b2bacf7c49e02c0	pass	protac	VHL-KRas G12D ASP3082; deposited assemblies split the ternary, ASU used
+9Q33_c23c9cccdbeb50f0bd0f	pass	protac	CRBN-Blimp1 bifunctional with C13 linker; deposited assemblies split the ternary, ASU used
+8BUR_57fd36ab7d589a92b257	fail		ligand occupancy 0.5 per pose
+9NFR_b7c8a12ef1ed44b6e2b8	fail		ligand incomplete
+9SQ6_28cc75dd29c8b71e6a42	fail		ligand incomplete
+9E2U_6786fd3f4481f60a710c	fail		ASU copy of assembly record 9E2U_6c11ffdbc7791f5e21cf
+9E2U_de71f10fa7916e0fb0d7	fail		ASU copy of assembly record 9E2U_6c11ffdbc7791f5e21cf
+8YMB_5de91823c9df5f7a48dd	fail		ASU copy of assembly record 8YMB_3aff2bad0675b600f878
+8EHZ_891e62d2f252e6b85ba5	fail		not a degrader: helicon (WHL staple)
+8EI0_2e49e8117f9367c65c94	fail		not a degrader: helicon (WHL staple)
+8EI4_8a92a930b161be85e04f	fail		not a degrader: helicon (WHL staple)
+8EI3_05dddd4faeccba92d302	fail		not a degrader: helicon (WHL staple)
+8EI7_e1772180d81e95082fbf	fail		not a degrader: helicon (WHL staple)
+8EI8_a6c36a61627b6e59c7f8	fail		not a degrader: helicon (WHL staple)
+8EI9_fc16274ae77404bb00cb	fail		not a degrader: helicon (WHL staple)
+8EIA_7c5e4b9be79a6fa6e610	fail		not a degrader: helicon (WHL staple)
+8EIB_7fd67f5674e63e7d7566	fail		not a degrader: helicon (WHL staple)
+8EIC_fe7a322a644e971cece8	fail		not a degrader: helicon (WHL staple)
+8EI5_862e8a055b92759b57a3	fail		not a degrader: helicon (WHL staple)
+8F10_2afcc59b72bc6a78cdbd	fail		not a degrader: helicon (WHL staple)
+8F12_2afcc59b72bc6a78cdbd	fail		not a degrader: helicon (WHL staple)
+8F13_2afcc59b72bc6a78cdbd	fail		not a degrader: helicon (WHL staple)
+8F14_aaaf00ae0d3c686dd50d	fail		not a degrader: helicon (WHL staple)
+8F17_8578d13bd6880cd398a4	fail		not a degrader: helicon (WHL staple)
+8F16_aaaf00ae0d3c686dd50d	fail		not a degrader: helicon (WHL staple)
+8F16_8578d13bd6880cd398a4	fail		not a degrader: helicon (WHL staple)
+8F15_aaaf00ae0d3c686dd50d	fail		not a degrader: helicon (WHL staple)
+7UYK_107bd70d17d204cd252c	fail		not a degrader: helicon (WHL staple)
+5AFG_669c064dc655048a0243	fail		not a degrader: stapled/macrocyclic peptide or MDM inhibitor
+6H22_cb5a2ab7a23a395e55a4	fail		not a degrader: stapled/macrocyclic peptide or MDM inhibitor
+6T2D_b3bbb40fc199dacbe96b	fail		not a degrader: stapled/macrocyclic peptide or MDM inhibitor
+6T2F_83da3e676ac6c945baf8	fail		not a degrader: stapled/macrocyclic peptide or MDM inhibitor
+6Y4Q_1b5faa7622c09b9d6297	fail		not a degrader: stapled/macrocyclic peptide or MDM inhibitor
+8IA5_cb72c4263d765a1b3b9d	fail		not a degrader: stapled/macrocyclic peptide or MDM inhibitor
+4MDK_55e8d02ff170be263156	pass	molecular_glue_non_degrader	CDC34-ubiquitin CC0651; stabilises E2-Ub, not a degrader
+6NYO_2c25106999c8f4e75648	pass	molecular_glue_non_degrader	CDC34-ubiquitin CC0651; stabilises E2-Ub, not a degrader
+7OJX_561957548698efb1e923	fail		not a degrader: E2-ubiquitin probe
+6T7F_7be10bb47787c5a891dc	fail		not a degrader: E2-ubiquitin probe
+3IXS_8a1590584cd207ab3c46	fail		not a degrader: buffer (CHES)
+9TPH_c546ad5db440ff8efdb6	fail		not a degrader: molecular tweezer-peptide conjugate
+9TPI_5d254eb47361365fe594	fail		not a degrader: molecular tweezer-peptide conjugate
+9QRU_f33f18ccdd870cff5248	fail		not a degrader: steroid at MEGF8-MOSMO
+9QS6_bb9436cf4b2b86abaca3	fail		not a degrader: steroid at MEGF8-MOSMO
+9QSH_f33f18ccdd870cff5248	fail		not a degrader: steroid at MEGF8-MOSMO
+29HG_abb363370da1d94c548b	pass	molecular_glue	class from unresolved annotation: FBXO22 glue, new class
+29HI_b8e4c4d0452b52319b09	pass	molecular_glue	class from unresolved annotation: FBXO22 glue, new class
+6H0F_6876830a04ebb9b45a3b	pass	molecular_glue	class from unresolved annotation: CRBN-IKZF1 pomalidomide
+6H0G_6c819fdd2eb64b73584b	pass	molecular_glue	class from unresolved annotation: CRBN-ZNF692 pomalidomide
+6Q0R_612f54cf018b58b476f1	pass	molecular_glue	class from unresolved annotation: DCAF15-RBM39 E7820
+6Q0V_83ed48ac612e74f8ad60	pass	molecular_glue	class from unresolved annotation: DCAF15-RBM39 tasisulam
+6Q0W_438b2dd545af36e30a92	pass	molecular_glue	class from unresolved annotation: DCAF15-RBM39 indisulam
+8RQC_a74b7bf160ae4130e76f	pass	molecular_glue	class from unresolved annotation: CRBN-IKZF1 mezigdomide
+8RX0_1956ef4bc0e7d36c5b40	pass	protac	class from unresolved annotation: VHL-BRD4 BD2 MZ1 in CRL2 ubiquitination complex
+8UH6_f8dc0b0ba0a6bfd9628b	pass	protac	class from unresolved annotation: CRBN-PTPN2
+9D0X_115526e031ced76eef04	pass	protac	class from unresolved annotation: CRBN-CDK2 Cpd 4
+9D4B_5e2a4f7a37c702bfaf01	pass	protac	class from unresolved annotation: VHL-SMARCA2 SMD-3236
+9DTX_9e0579f9628ac977c387	pass	protac	class from unresolved annotation: VHL-SMARCA2 PRT3789
+9DUR_838ef3f39c5bd23501c6	pass	molecular_glue	class from unresolved annotation: CRBN-ENL dHTC1
+9NWS_0194630d4a108b867638	pass	molecular_glue	class from unresolved annotation: CRBN-SALL4 mezigdomide
+9NWT_14c152f4110d2e58fd9e	pass	molecular_glue	class from unresolved annotation: CRBN-SALL4 G416A mezigdomide
+9NYR_7099b5f0795ac27ba096	pass	protac	class from unresolved annotation: CRBN-CDK2 Cpd 24
+9Q03_0c8c9e722447dbd383d6	pass	protac	class from unresolved annotation: CRBN-BCL6 BCL6-760
+9S3R_f7a3a6cad519c236d001	pass	molecular_glue	class from unresolved annotation: DCAF16-SMARCA2 compound 1
+9YA9_36763b9395ef9061fbaf	pass	protac	class from unresolved annotation: CRBN-BCL6 BMS-986458
+7M2K_3a74b073e5732c057ade	pass	molecular_glue_non_degrader	CDC34A-ubiquitin 2ab; CC0651-type E2-Ub stabiliser, not a degrader
+9DU1_41608589462efab786a0	pass	molecular_glue_non_degrader	FKBP12-BRD9; no E3 in the pair
+9DTW_746eeabea9a97e64e6d0	pass	molecular_glue_non_degrader	FKBP12-QDPR; no E3 in the pair
+8W31_bc67edbd9c8a74031ec2	pass	molecular_glue_non_degrader	parkin activator at the pUb interface, not a degrader
+9DTY_ac205e7e0ca8994c095c	fail		duplicate of 9DTY_9a421f24e020d742d588; ligand also touches a second VHL copy
+7KHH_4a0bbdee49db4c166da5	fail		ligand occupancy 0.58 (< 0.9)
+6M93_cfeed46c63bd393dcf2a	fail		ligand occupancy 0.78 (< 0.9)
+6M92_2a147d939ec11cc146f2	fail		ligand occupancy 0.79 (< 0.9)
+8EWV_567adadcda15afbfeffe	fail		DEL-derived VHL bifunctional proximity inducer; neither glue nor PROTAC
