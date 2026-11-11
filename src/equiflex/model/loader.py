@@ -614,7 +614,7 @@ def get_dataloader(
 
 
 def load_split_from_csv(
-    csv_path: str = 'data_v2_plinder/splits_v9.csv',
+    csv_path: str = 'data_v2_plinder/splits.csv',
 ) -> Tuple[List[str], List[str], List[str]]:
     """
     Load train/val/test splits from LP_PDBBind CSV file.
@@ -790,7 +790,7 @@ def get_train_val_dataloaders(
     seed: int = 42,
     log_dir: Optional[str] = None,
     val_batches: int = 100,
-    split_csv: str = 'data_v2_plinder/splits_v9.csv',
+    split_csv: str = 'data_v2_plinder/splits.csv',
     split_dir: Optional[str] = None,
     preload: bool = False,
     systems_per_batch: int = 1,

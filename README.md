@@ -49,7 +49,7 @@ configs/equiflex_config.yaml      training config of the released checkpoint
 weights/weights.ckpt              released checkpoint (Git LFS)
 data/5SAK_ZRY/                    bundled example system (inputs + precomputed features)
 data/posebusters/benchmark.yaml   308-system PoseBusters manifest (pockets, SMILES, ions)
-data_v2_plinder/splits_v9.csv     PLINDER train/val split of the released model
+data_v2_plinder/splits.csv        PLINDER train/val/test split of the released model
 ```
 
 ## Pocket definition
@@ -259,7 +259,8 @@ entities or atom order change (including adding/removing ions), rerun preparatio
 do not fix the mismatch by blindly truncating or padding embeddings. Evaluation
 failures log the split, system context and exception traceback.
 
-The PLINDER split used for the released model is `data_v2_plinder/splits_v9.csv`.
+The PLINDER split used for the released model is `data_v2_plinder/splits.csv`
+(`system_id,split`; 62,407 train / 817 val / 1,027 test).
 
 ## Training
 

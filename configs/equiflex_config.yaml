@@ -133,7 +133,7 @@ data:
   shuffle: true
   pin_memory: true
   preload: false
-  split_csv: 'data_v2_plinder/splits_v9.csv'   # splits_max500 minus covalent sugars, near-identical asymmetric-unit copies collapsed (no seqsim filter)
+  split_csv: 'data_v2_plinder/splits.csv'   # covalent sugars dropped, near-identical asymmetric-unit copies collapsed (no seqsim filter)
 
 # =============================================================================
 # Optimizer (Muon + AdamW)
