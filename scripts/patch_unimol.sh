@@ -10,7 +10,6 @@
 #                                      with standalone
 #
 # PYTHON=/path/to/python selects another interpreter (default: python on PATH).
-set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 patch_file="$here/unimol_padding.patch"
